@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f5f7ff" />
+    <title>UQ Study Search</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="知识库">
+        <div class="brand">
+          <div class="brand-mark" aria-label="UQ Study Search 标识">UQ</div>
+          <div>
+            <p class="eyebrow">UQ STUDENT TOOLKIT</p>
+            <h1>Study Search</h1>
+          </div>
+          <span class="beta-pill">BETA</span>
+        </div>
+
+        <section class="workspace-card" aria-label="当前工作区">
+          <div class="workspace-icon" aria-hidden="true">⌘</div>
+          <div>
+            <span>当前工作区</span>
+            <strong>我的课程资料库</strong>
+          </div>
+          <span class="workspace-arrow" aria-hidden="true">⌄</span>
+        </section>
+
+        <section class="upload-card">
+          <div class="section-heading">
+            <span>添加学习资料</span>
+            <span class="file-type">.md · .txt</span>
+          </div>
+          <label class="drop-zone" id="drop-zone" for="file-input">
+            <input id="file-input" type="file" accept=".md,.txt,text/plain,text/markdown" />
+            <span class="upload-icon" aria-hidden="true">↑</span>
+            <strong>上传课程资料</strong>
+            <small>拖入文件，或点击选择</small>
+          </label>
+          <p class="upload-note">课件笔记、Course Profile、作业要求都可以。</p>
+        </section>
+
+        <section class="library" aria-live="polite">
+          <div class="library-title">
+            <div>
+              <span>我的知识库</span>
+              <small>已加入检索范围</small>
+            </div>
+            <span id="file-count" class="count-badge">0</span>
+          </div>
+          <div id="file-list" class="file-list">
+            <p class="muted">正在读取资料…</p>
+          </div>
+        </section>
+
+        <footer class="sidebar-footer">
+          <span class="status-dot"></span>
+          <span>
+            <b id="service-status">正在连接服务</b>
+            <small>Powered by RAG retrieval</small>
+          </span>
+        </footer>
+      </aside>
+
+      <section class="chat-area">
+        <header class="topbar">
+          <div class="page-title">
+            <div class="title-icon" aria-hidden="true">✦</div>
+            <div>
+              <p class="eyebrow">UQ LEARNING COMPANION</p>
+              <h2>问问你的课程资料</h2>
+            </div>
+          </div>
+          <div class="topbar-actions">
+            <span class="online-chip"><i></i> 已连接</span>
+            <button id="new-chat" class="secondary-button" type="button"><span aria-hidden="true">＋</span> 新建对话</button>
+          </div>
+        </header>
+
+        <div id="chat-messages" class="messages" aria-live="polite">
+          <article class="welcome-card">
+            <div class="hero-orb" aria-hidden="true"><span>✦</span></div>
+            <p class="eyebrow">READY WHEN YOU ARE</p>
+            <h3>让每一份课程资料，<em>都能即时回答你。</em></h3>
+            <p>上传 Course Profile、课堂笔记或作业说明。我会从你的资料中检索相关内容，再结合这次对话的上下文回答。</p>
+            <div class="capabilities" aria-label="功能特点">
+              <span>⌕ 语义检索</span>
+              <span>◌ 对话记忆</span>
+              <span>↗ 即时回答</span>
+            </div>
+            <p class="suggestion-label">试着问一个问题</p>
+            <div class="suggestions">
+              <button type="button" class="suggestion"><span>截止日期</span>这门课的 Assignment 2 截止时间是什么？<b>↗</b></button>
+              <button type="button" class="suggestion"><span>概念解释</span>根据资料解释 RAG 的检索阶段。<b>↗</b></button>
+              <button type="button" class="suggestion"><span>复习规划</span>总结我上传的本周复习重点。<b>↗</b></button>
+            </div>
+          </article>
+        </div>
+
+        <form id="chat-form" class="composer">
+          <label class="sr-only" for="question-input">你的问题</label>
+          <div class="composer-label"><span>Ask your knowledge base</span><span>⌘ Enter 发送</span></div>
+          <textarea id="question-input" rows="1" maxlength="2000" placeholder="例如：这门课的作业要求里，迟交规则是什么？"></textarea>
+          <button id="send-button" class="send-button" type="submit" aria-label="发送问题">
+            <span>发送</span><span aria-hidden="true">↗</span>
+          </button>
+          <p><span class="lock" aria-hidden="true">◒</span> 回答仅基于你上传的资料生成；请自行核对课程官网的最新通知。</p>
+        </form>
+      </section>
+    </main>
+    <div id="toast" class="toast" role="status"></div>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

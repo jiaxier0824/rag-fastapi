@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+uploads/
+chroma_db/
+chat_history/
+md5.text
+.DS_Store
+.idea/
+agent_lessons/
+sample_data/
