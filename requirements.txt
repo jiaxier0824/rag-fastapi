@@ -12,3 +12,7 @@ langchain-chroma==1.1.0
 langchain-text-splitters==1.1.2
 chromadb==1.5.9
 dashscope==1.26.3
+
+# 开发与验收：不参与线上运行，但用于接口回归测试。
+pytest==8.4.2
+httpx==0.28.1

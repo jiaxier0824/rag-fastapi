@@ -1,0 +1,44 @@
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-rag_project}
+      # 容器内使用独立应用账号，不复用本地开发时可能使用的 root 账号。
+      MYSQL_USER: ${MYSQL_APP_USER:-rag_user}
+      MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD:-rag_app_password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-change_me_before_deploy}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  rag-api:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Compose 网络中，后端通过服务名 mysql 访问数据库，不再使用 127.0.0.1。
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: ${MYSQL_APP_USER:-rag_user}
+      DB_PASSWORD: ${MYSQL_APP_PASSWORD:-rag_app_password}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./chroma_db:/app/chroma_db
+      - ./chat_history:/app/chat_history
+
+volumes:
+  mysql_data:

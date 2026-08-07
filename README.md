@@ -22,9 +22,25 @@ Python、FastAPI、LangChain、通义千问、Chroma、MySQL、SQLAlchemy、Dock
 
 ## 架构
 
-用户上传资料 → 文件校验与 MD5 去重 → 文本切分 → 向量化 → Chroma。
+```mermaid
+flowchart LR
+    UI["网页前端 / Swagger"] --> API["FastAPI Router"]
+    API --> SERVICE["Service 业务协调层"]
+    SERVICE --> CRUD["CRUD / SQLAlchemy"]
+    CRUD --> MYSQL[("MySQL：文件元数据")]
+    SERVICE --> KB["KnowledgeBaseService：切分与 metadata"]
+    KB --> VECTOR["VectorStoreService"]
+    VECTOR --> CHROMA[("Chroma：切片、向量、metadata")]
+    SERVICE --> UPLOADS["uploads：原始文件"]
+    API --> RAG["RagService"]
+    RAG --> VECTOR
+    RAG --> HISTORY["chat_history：会话历史"]
+    RAG --> LLM["通义千问"]
+```
 
-用户提问 → Chroma 检索相关资料 → 组装提示词与会话历史 → 大语言模型生成回答。
+上传链路：文件校验 → MD5 去重 → 原文件保存 → MySQL 建立文件记录 → 文本切分 → 向量写入 Chroma。
+
+问答链路：用户问题 → Chroma 检索相关切片 → 组装提示词与会话历史 → 大语言模型生成回答。
 
 ## 本地配置
 
@@ -76,7 +92,40 @@ uvicorn api:app --reload --port 8000
 
 ## Docker
 
-项目提供 `Dockerfile`，可作为 Agent 项目 Docker Compose 中的 RAG 服务镜像构建。
+项目提供 `Dockerfile` 与 `docker-compose.yml`，可一键启动 MySQL 与 RAG 服务：
+
+```bash
+docker compose up --build
+```
+
+Docker 环境会自动使用独立的 `rag_user` 账号；部署前请在 `.env` 中修改
+`MYSQL_ROOT_PASSWORD` 和 `MYSQL_APP_PASSWORD`，不要保留示例密码。
+
+首次启动会自动创建 MySQL 表。浏览器打开 `http://127.0.0.1:8000`。
+
+停止服务但保留数据：
+
+```bash
+docker compose down
+```
+
+若要连同 Docker 中的 MySQL 数据一起删除，再执行：
+
+```bash
+docker compose down -v
+```
+
+注意：最后这条命令会删除数据库卷中的数据。
+
+## 验收与测试
+
+安装依赖后运行：
+
+```bash
+pytest -q
+```
+
+测试会用 Fake Service 替代 MySQL、Chroma 和大模型，验证健康检查、上传、分页列表、删除、问答接口的请求与响应契约。真实环境验收时，再使用网页或 `/docs` 完整执行一次“上传 → 提问 → 删除”的链路。
 
 ## 后续迭代
 
