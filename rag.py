@@ -17,8 +17,11 @@ from langchain_core.prompts import (
 )
 
 from langchain_community.chat_models.tongyi import ChatTongyi
+from time import perf_counter
 
 from config.settings import settings
+from services.reranker import RerankService
+from services.observability import RequestTraceLogger
 from stores.chat_history import get_history
 from stores.vector_store import VectorStoreService
 
@@ -36,16 +39,31 @@ def print_prompt(prompt):
     return prompt
 
 
+def _source_names(documents: list[Document]) -> list[str]:
+    """按顺序提取检索或重排阶段出现的来源文件名。"""
+    return list(
+        dict.fromkeys(
+            document.metadata["source"]
+            for document in documents
+            if document.metadata.get("source")
+        )
+    )
+
+
 class RagService:
     """组装“检索 -> 提示词 -> 大模型 -> 历史记录”的 RAG 问答链。"""
 
     def __init__(
         self,
-        vector_store_service: VectorStoreService
+        vector_store_service: VectorStoreService,
+        rerank_service: RerankService,
+        trace_logger: RequestTraceLogger,
     ):
 
         # 保存依赖注入的同一个向量库服务；上传和问答因此访问同一份 Chroma 数据。
         self.vector_service = vector_store_service
+        self.rerank_service = rerank_service
+        self.trace_logger = trace_logger
 
         # 2. 创建聊天提示词。三个占位符会在链运行时填入：context、history、input。
         self.prompt_template = ChatPromptTemplate.from_messages(
@@ -72,31 +90,104 @@ class RagService:
 
         # 3. 创建聊天模型
         self.chat_model = ChatTongyi(
-            model=settings.chat_model_name
+            model=settings.chat_model_name,
+            api_key=settings.dashscope_api_key,
         )
 
         # 4. 创建最终 RAG 链。注意 self.chain 最终是“带历史包装器的链”，不是裸 rag_chain。
         self.chain = self.__get_chain()
 
+    def ask(
+        self,
+        question: str,
+        session_id: str,
+        trace_id: str,
+    ) -> tuple[str, list[str]]:
+        """完成一次问答，并返回答案和本次实际使用的来源文件名。"""
+        # 只检索一次：同一批 Document 同时用作模型上下文和前端来源。
+        candidate_top_k = (
+            settings.retrieval_candidate_top_k
+            if settings.rerank_enabled
+            else settings.retrieval_top_k
+        )
+        candidates, retrieval_timing = self.vector_service.search_with_trace(
+            query=question,
+            top_k=candidate_top_k,
+        )
+
+        rerank_started_at = perf_counter()
+        documents = self.rerank_service.rerank(
+            question=question,
+            candidates=candidates,
+        )
+        rerank_elapsed_ms = round((perf_counter() - rerank_started_at) * 1000, 2)
+
+        source_filenames = list(
+            dict.fromkeys(
+                document.metadata["source"]
+                for document in documents
+                if document.metadata.get("source")
+            )
+        )
+
+        session_config = {
+            "configurable": {
+                "session_id": session_id
+            }
+        }
+
+        generation_started_at = perf_counter()
+        answer = self.chain.invoke(
+            {
+                "input": question,
+                "documents": documents,
+            },
+            config=session_config,
+        )
+        generation_elapsed_ms = round(
+            (perf_counter() - generation_started_at) * 1000,
+            2,
+        )
+
+        self.trace_logger.write(
+            {
+                "trace_id": trace_id,
+                "session_id": session_id,
+                "question_length": len(question),
+                "model": settings.chat_model_name,
+                "rerank_enabled": settings.rerank_enabled,
+                "candidate_count": len(candidates),
+                "final_document_count": len(documents),
+                "candidate_sources": _source_names(candidates),
+                "sources": source_filenames,
+                "timing_ms": {
+                    **retrieval_timing,
+                    "rerank_ms": rerank_elapsed_ms,
+                    "generation_ms": generation_elapsed_ms,
+                    "total_ms": round(
+                        retrieval_timing["hybrid_total_ms"]
+                        + rerank_elapsed_ms
+                        + generation_elapsed_ms,
+                        2,
+                    ),
+                },
+            }
+        )
+
+        return answer, source_filenames
 
     def __get_chain(self):
         """
         创建完整的RAG问答链。
         """
 
-        # 1. 取得 Chroma 检索器。这里只创建工具，不执行搜索。
-        retriever = self.vector_service.get_retriever()
-
-
-        # 2. 把检索到的Document列表转换成字符串
+        # 把检索到的 Document 列表转换成提示词中的 context 字符串。
         def format_documents(
             documents: list[Document]
         ):
-            # Retriever 的输出是 list[Document]；每个 Document 有 page_content 和 metadata。
             if not documents:
                 return "没有检索到相关参考资料"
 
-            # Document 来自 Chroma 检索。这里只把片段和 metadata 整理为提示词上下文。
             formatted_text = ""
 
             for document in documents:
@@ -107,39 +198,20 @@ class RagService:
 
             return formatted_text
 
-
-        # 3. 从输入字典中取出用户问题
-        def format_for_retriever(value: dict):
-            # 历史包装器注入后 value 同时含 input 与 history；检索器只需要本轮问题。
-            return value["input"]
-
-
-        # 4. 整理提示词需要的数据
+        # 两条并行分支汇合后，整理为 PromptTemplate 所需的三个占位符。
         def format_for_prompt(value: dict):
-            # 两条并行分支的输出在此汇合，整理为 PromptTemplate 的三个占位符。
-            # 此时 value 的形状为：
-            # {"input": {"input": 问题, "history": 历史消息}, "context": 检索后的字符串}
-            # 返回后变为平铺字典，正好匹配模板中的 {input}、{context}、history。
-            new_value = {
+            return {
                 "input": value["input"]["input"],
                 "context": value["context"],
                 "history": value["input"]["history"]
             }
 
-            return new_value
-
-
-        # 5. 创建RAG调用链
         rag_chain = (
-            # input 分支保留问题与 history；context 分支只取问题并完成检索、格式化。
-            # 两个分支接收同一份输入并行运行；它们的结果合并成一个字典后再进入下一节点。
             {
                 "input": RunnablePassthrough(),
-                "context": (
-                    RunnableLambda(format_for_retriever)
-                    | retriever
-                    | RunnableLambda(format_documents)
-                )
+                "context": RunnableLambda(
+                    lambda value: format_documents(value["documents"])
+                ),
             }
             | RunnableLambda(format_for_prompt)
             | self.prompt_template
@@ -151,7 +223,6 @@ class RagService:
         )
 
 
-        # 6. 给RAG链增加长期聊天记录
         conversation_chain = RunnableWithMessageHistory(
             # 包装器会：1) 按 session_id 读取历史；2) 注入 history；3) 自动保存本轮问答。
             # input_messages_key 告诉它“用户消息在输入字典的哪个键”；

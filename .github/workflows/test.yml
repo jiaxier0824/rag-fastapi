@@ -1,0 +1,31 @@
+name: RAG tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    env:
+      # CI 只运行 Fake 依赖的单元测试，不读取本机 .env，不调用百炼。
+      DB_PASSWORD: ci-test-password
+      RERANK_ENABLED: "false"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+
+      - name: Run unit tests
+        run: python -m pytest -q

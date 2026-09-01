@@ -18,6 +18,8 @@ from config.settings import settings
 from knowledge_base import KnowledgeBaseService
 from rag import RagService
 from services.knowledge_file import KnowledgeFileService
+from services.observability import RequestTraceLogger
+from services.reranker import RerankService
 from stores.vector_store import VectorStoreService
 
 
@@ -29,7 +31,8 @@ def get_embedding_model() -> DashScopeEmbeddings:
     ``@lru_cache`` 表示在当前 Python 进程生命周期内只创建一次；服务重启后会重新创建。
     """
     return DashScopeEmbeddings(
-        model=settings.embedding_model_name
+        model=settings.embedding_model_name,
+        dashscope_api_key=settings.dashscope_api_key,
     )
 
 
@@ -62,6 +65,18 @@ def get_knowledge_file_service() -> KnowledgeFileService:
 
 
 @lru_cache
+def get_rerank_service() -> RerankService:
+    """提供唯一的重排服务；未启用时它会返回原有 RRF 排序结果。"""
+    return RerankService()
+
+
+@lru_cache
+def get_request_trace_logger() -> RequestTraceLogger:
+    """提供单个本地 JSONL 请求日志写入器。"""
+    return RequestTraceLogger(settings.observability_log_path)
+
+
+@lru_cache
 def get_rag_service() -> RagService:
     """提供 RAG 服务。
 
@@ -69,5 +84,7 @@ def get_rag_service() -> RagService:
     不需要文件上传、MD5 去重或 MySQL 写入能力。
     """
     return RagService(
-        vector_store_service=get_vector_store_service()
+        vector_store_service=get_vector_store_service(),
+        rerank_service=get_rerank_service(),
+        trace_logger=get_request_trace_logger(),
     )

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "infs7410-weekly-quizzes",
+    "question": "INFS7410 的 Weekly quizzes 最终如何计分？迟交会怎样？",
+    "expected_sources": ["INFS7410_Sem2_2026_assessment_summary.md"]
+  },
+  {
+    "id": "infs7410-project-deadlines",
+    "question": "INFS7410 Project Part 1 和 Part 2 的权重与截止时间分别是什么？",
+    "expected_sources": ["INFS7410_Sem2_2026_assessment_summary.md"]
+  },
+  {
+    "id": "infs7203-code-interview",
+    "question": "INFS7203 的 code interview 为什么重要？如果 interview 分数低会怎样？",
+    "expected_sources": ["INFS7203_Sem2_2026_assessment_summary.md"]
+  },
+  {
+    "id": "reit6811-exam-hurdle",
+    "question": "REIT6811 想获得 Grade 4，期末考试至少需要多少分？",
+    "expected_sources": ["REIT6811_Sem2_2026_assessment_summary.md"]
+  },
+  {
+    "id": "deco6500-a2",
+    "question": "DECO6500 的 A2 是个人任务还是小组任务？占多少分、什么时候截止？",
+    "expected_sources": ["DECO6500_Sem2_2026_assessment_summary.md"]
+  },
+  {
+    "id": "deco6500-a3",
+    "question": "DECO6500 的 A3 为什么需要 critical discussion？",
+    "expected_sources": ["DECO6500_Sem2_2026_assessment_summary.md"]
+  }
+]

@@ -5,6 +5,7 @@ __pycache__/
 uploads/
 chroma_db/
 chat_history/
+logs/
 md5.text
 .DS_Store
 .idea/

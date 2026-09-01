@@ -4,9 +4,13 @@
 Embedding、Chroma 的持久化目录和 collection 名称等基础设施细节集中在本文件。
 """
 
+import re
+from time import perf_counter
 from pathlib import Path
 
 from langchain_chroma import Chroma
+from langchain_core.documents import Document
+from rank_bm25 import BM25Okapi
 
 from config.settings import settings
 
@@ -72,6 +76,140 @@ class VectorStoreService:
             self.vector_store.delete(ids=document_ids)
 
         return len(document_ids)
+
+    def search(
+        self,
+        query: str,
+    ) -> list[Document]:
+        """合并向量检索与关键词检索的结果，返回最终上下文切片。"""
+        fusion_top_k = (
+            settings.retrieval_candidate_top_k
+            if settings.rerank_enabled
+            else settings.retrieval_top_k
+        )
+        documents, _ = self.search_with_trace(
+            query=query,
+            top_k=fusion_top_k,
+        )
+        return documents
+
+    def search_with_trace(
+        self,
+        query: str,
+        top_k: int,
+    ) -> tuple[list[Document], dict[str, float]]:
+        """执行混合检索，并返回切片与各检索阶段耗时（毫秒）。
+
+        正常问答仍使用 ``search``。此方法给离线评测和后续可观测性使用，
+        因而能比较 RRF 基线与重排版本的实际延迟。
+        """
+        total_started_at = perf_counter()
+
+        vector_started_at = perf_counter()
+        vector_documents = self.vector_store.similarity_search(
+            query=query,
+            k=settings.retrieval_vector_top_k,
+        )
+        vector_elapsed_ms = (perf_counter() - vector_started_at) * 1000
+
+        keyword_started_at = perf_counter()
+        keyword_documents = self._keyword_search(query)
+        keyword_elapsed_ms = (perf_counter() - keyword_started_at) * 1000
+
+        fusion_started_at = perf_counter()
+        documents = self._reciprocal_rank_fusion(
+            ranked_document_lists=[vector_documents, keyword_documents],
+            top_k=top_k,
+        )
+        fusion_elapsed_ms = (perf_counter() - fusion_started_at) * 1000
+
+        return documents, {
+            "vector_search_ms": round(vector_elapsed_ms, 2),
+            "keyword_search_ms": round(keyword_elapsed_ms, 2),
+            "rrf_fusion_ms": round(fusion_elapsed_ms, 2),
+            "hybrid_total_ms": round(
+                (perf_counter() - total_started_at) * 1000,
+                2,
+            ),
+        }
+
+    def _keyword_search(self, query: str) -> list[Document]:
+        """用 BM25 从当前 Chroma 全量切片中召回包含关键词的内容。"""
+        stored_data = self.vector_store.get(
+            include=["documents", "metadatas"],
+        )
+        documents = [
+            Document(page_content=text, metadata=metadata or {})
+            for text, metadata in zip(
+                stored_data.get("documents", []),
+                stored_data.get("metadatas", []),
+            )
+            if text
+        ]
+
+        if not documents:
+            return []
+
+        tokenized_documents = [
+            self._tokenize(document.page_content)
+            for document in documents
+        ]
+        query_tokens = self._tokenize(query)
+
+        if not query_tokens:
+            return []
+
+        bm25 = BM25Okapi(tokenized_documents)
+        scores = bm25.get_scores(query_tokens)
+        ranked_indexes = sorted(
+            range(len(documents)),
+            key=lambda index: scores[index],
+            reverse=True,
+        )
+
+        return [
+            documents[index]
+            for index in ranked_indexes[:settings.retrieval_keyword_top_k]
+            if scores[index] > 0
+        ]
+
+    @staticmethod
+    def _tokenize(text: str) -> list[str]:
+        """把英文单词、数字和中文字符切成 BM25 可计算的 token。"""
+        return re.findall(r"[a-z0-9_]+|[\u4e00-\u9fff]", text.lower())
+
+    @staticmethod
+    def _document_key(document: Document) -> tuple[str, str]:
+        """为同一文本切片生成稳定键，供两路召回结果去重。"""
+        return document.page_content, str(document.metadata.get("file_id", ""))
+
+    def _reciprocal_rank_fusion(
+        self,
+        ranked_document_lists: list[list[Document]],
+        top_k: int,
+    ) -> list[Document]:
+        """使用 RRF 合并多路召回结果，避免单一路径主导最终排序。"""
+        scores: dict[tuple[str, str], float] = {}
+        documents_by_key: dict[tuple[str, str], Document] = {}
+
+        for documents in ranked_document_lists:
+            for rank, document in enumerate(documents, start=1):
+                key = self._document_key(document)
+                documents_by_key[key] = document
+                scores[key] = scores.get(key, 0.0) + 1 / (
+                    settings.retrieval_rrf_k + rank
+                )
+
+        ranked_keys = sorted(
+            scores,
+            key=lambda key: scores[key],
+            reverse=True,
+        )
+
+        return [
+            documents_by_key[key]
+            for key in ranked_keys[:top_k]
+        ]
 
     def get_retriever(self):
         """将 Chroma 适配为 LangChain Retriever，而不是立刻发起检索。

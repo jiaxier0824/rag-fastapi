@@ -90,10 +90,13 @@ async function uploadFile(file) {
   }
 }
 
-function addMessage(role, text) {
+function addMessage(role, text, sources = []) {
   const article = document.createElement('article');
   article.className = `message ${role}`;
-  article.innerHTML = `<span class="avatar">${role === 'user' ? '你' : 'UQ'}</span><div class="bubble">${escapeHtml(text)}</div>`;
+  const sourceMarkup = role === 'assistant' && sources.length
+    ? `<div class="source-list">资料来源：${sources.map((source) => escapeHtml(source.filename)).join('、')}</div>`
+    : '';
+  article.innerHTML = `<span class="avatar">${role === 'user' ? '你' : 'UQ'}</span><div class="bubble"><div class="message-text">${escapeHtml(text)}</div>${sourceMarkup}</div>`;
   elements.messages.append(article);
   elements.messages.scrollTop = elements.messages.scrollHeight;
   return article;
@@ -131,7 +134,7 @@ async function sendQuestion(question) {
     });
     const result = await response.json();
     if (!response.ok) throw new Error(result.detail || '问答请求失败');
-    addMessage('assistant', result.answer);
+    addMessage('assistant', result.answer, result.sources || []);
   } catch (error) {
     addMessage('assistant', `暂时无法回答：${error.message}`);
   } finally {

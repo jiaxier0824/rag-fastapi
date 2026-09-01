@@ -1,0 +1,242 @@
+{
+  "dataset_size": 6,
+  "retrieval_config": {
+    "vector_top_k": 5,
+    "keyword_top_k": 5,
+    "rrf_candidate_top_k": 6,
+    "final_top_k": 3,
+    "rerank_model": "qwen3-rerank"
+  },
+  "baseline": {
+    "hit_rate_at_3": 1.0,
+    "mrr_at_3": 1.0,
+    "average_latency_ms": 1362.585
+  },
+  "rerank": {
+    "hit_rate_at_3": 1.0,
+    "mrr_at_3": 1.0,
+    "average_latency_ms": 2937.475
+  },
+  "cases": [
+    {
+      "id": "infs7410-weekly-quizzes",
+      "question": "INFS7410 的 Weekly quizzes 最终如何计分？迟交会怎样？",
+      "expected_sources": [
+        "INFS7410_Sem2_2026_assessment_summary.md"
+      ],
+      "candidate_sources": [
+        "INFS7410_Sem2_2026_assessment_summary.md",
+        "INFS7203_Sem2_2026_assessment_summary.md",
+        "REIT6811_Sem2_2026_assessment_summary.md"
+      ],
+      "baseline": {
+        "sources": [
+          "INFS7410_Sem2_2026_assessment_summary.md"
+        ],
+        "hit_at_3": 1,
+        "reciprocal_rank": 1.0,
+        "latency_ms": 1775.88
+      },
+      "rerank": {
+        "sources": [
+          "INFS7410_Sem2_2026_assessment_summary.md"
+        ],
+        "hit_at_3": 1,
+        "reciprocal_rank": 1.0,
+        "latency_ms": 4014.76
+      },
+      "timing_ms": {
+        "vector_search_ms": 1767.33,
+        "keyword_search_ms": 8.52,
+        "rrf_fusion_ms": 0.03,
+        "hybrid_total_ms": 1775.88,
+        "rerank_ms": 2238.88
+      }
+    },
+    {
+      "id": "infs7410-project-deadlines",
+      "question": "INFS7410 Project Part 1 和 Part 2 的权重与截止时间分别是什么？",
+      "expected_sources": [
+        "INFS7410_Sem2_2026_assessment_summary.md"
+      ],
+      "candidate_sources": [
+        "INFS7410_Sem2_2026_assessment_summary.md",
+        "INFS7203_Sem2_2026_assessment_summary.md",
+        "DECO6500_Sem2_2026_assessment_summary.md"
+      ],
+      "baseline": {
+        "sources": [
+          "INFS7410_Sem2_2026_assessment_summary.md"
+        ],
+        "hit_at_3": 1,
+        "reciprocal_rank": 1.0,
+        "latency_ms": 1213.58
+      },
+      "rerank": {
+        "sources": [
+          "INFS7410_Sem2_2026_assessment_summary.md"
+        ],
+        "hit_at_3": 1,
+        "reciprocal_rank": 1.0,
+        "latency_ms": 3166.42
+      },
+      "timing_ms": {
+        "vector_search_ms": 1204.06,
+        "keyword_search_ms": 9.49,
+        "rrf_fusion_ms": 0.03,
+        "hybrid_total_ms": 1213.58,
+        "rerank_ms": 1952.84
+      }
+    },
+    {
+      "id": "infs7203-code-interview",
+      "question": "INFS7203 的 code interview 为什么重要？如果 interview 分数低会怎样？",
+      "expected_sources": [
+        "INFS7203_Sem2_2026_assessment_summary.md"
+      ],
+      "candidate_sources": [
+        "INFS7203_Sem2_2026_assessment_summary.md",
+        "INFS7410_Sem2_2026_assessment_summary.md",
+        "RAG_FastAPI_复盘笔记.md"
+      ],
+      "baseline": {
+        "sources": [
+          "INFS7203_Sem2_2026_assessment_summary.md"
+        ],
+        "hit_at_3": 1,
+        "reciprocal_rank": 1.0,
+        "latency_ms": 1329.74
+      },
+      "rerank": {
+        "sources": [
+          "INFS7203_Sem2_2026_assessment_summary.md"
+        ],
+        "hit_at_3": 1,
+        "reciprocal_rank": 1.0,
+        "latency_ms": 2730.07
+      },
+      "timing_ms": {
+        "vector_search_ms": 1318.77,
+        "keyword_search_ms": 10.92,
+        "rrf_fusion_ms": 0.04,
+        "hybrid_total_ms": 1329.74,
+        "rerank_ms": 1400.33
+      }
+    },
+    {
+      "id": "reit6811-exam-hurdle",
+      "question": "REIT6811 想获得 Grade 4，期末考试至少需要多少分？",
+      "expected_sources": [
+        "REIT6811_Sem2_2026_assessment_summary.md"
+      ],
+      "candidate_sources": [
+        "REIT6811_Sem2_2026_assessment_summary.md",
+        "INFS7203_Sem2_2026_assessment_summary.md",
+        "INFS7410_Sem2_2026_assessment_summary.md",
+        "DECO6500_Sem2_2026_assessment_summary.md"
+      ],
+      "baseline": {
+        "sources": [
+          "REIT6811_Sem2_2026_assessment_summary.md",
+          "INFS7203_Sem2_2026_assessment_summary.md",
+          "INFS7410_Sem2_2026_assessment_summary.md"
+        ],
+        "hit_at_3": 1,
+        "reciprocal_rank": 1.0,
+        "latency_ms": 1421.22
+      },
+      "rerank": {
+        "sources": [
+          "REIT6811_Sem2_2026_assessment_summary.md",
+          "INFS7203_Sem2_2026_assessment_summary.md"
+        ],
+        "hit_at_3": 1,
+        "reciprocal_rank": 1.0,
+        "latency_ms": 2701.27
+      },
+      "timing_ms": {
+        "vector_search_ms": 1411.15,
+        "keyword_search_ms": 10.02,
+        "rrf_fusion_ms": 0.03,
+        "hybrid_total_ms": 1421.22,
+        "rerank_ms": 1280.05
+      }
+    },
+    {
+      "id": "deco6500-a2",
+      "question": "DECO6500 的 A2 是个人任务还是小组任务？占多少分、什么时候截止？",
+      "expected_sources": [
+        "DECO6500_Sem2_2026_assessment_summary.md"
+      ],
+      "candidate_sources": [
+        "DECO6500_Sem2_2026_assessment_summary.md",
+        "INFS7410_Sem2_2026_assessment_summary.md",
+        "REIT6811_Sem2_2026_assessment_summary.md",
+        "INFS7203_Sem2_2026_assessment_summary.md"
+      ],
+      "baseline": {
+        "sources": [
+          "DECO6500_Sem2_2026_assessment_summary.md",
+          "INFS7410_Sem2_2026_assessment_summary.md"
+        ],
+        "hit_at_3": 1,
+        "reciprocal_rank": 1.0,
+        "latency_ms": 1203.97
+      },
+      "rerank": {
+        "sources": [
+          "DECO6500_Sem2_2026_assessment_summary.md",
+          "REIT6811_Sem2_2026_assessment_summary.md"
+        ],
+        "hit_at_3": 1,
+        "reciprocal_rank": 1.0,
+        "latency_ms": 2481.84
+      },
+      "timing_ms": {
+        "vector_search_ms": 1200.0,
+        "keyword_search_ms": 3.95,
+        "rrf_fusion_ms": 0.02,
+        "hybrid_total_ms": 1203.97,
+        "rerank_ms": 1277.87
+      }
+    },
+    {
+      "id": "deco6500-a3",
+      "question": "DECO6500 的 A3 为什么需要 critical discussion？",
+      "expected_sources": [
+        "DECO6500_Sem2_2026_assessment_summary.md"
+      ],
+      "candidate_sources": [
+        "DECO6500_Sem2_2026_assessment_summary.md",
+        "REIT6811_Sem2_2026_assessment_summary.md",
+        "INFS7203_Sem2_2026_assessment_summary.md",
+        "INFS7410_Sem2_2026_assessment_summary.md"
+      ],
+      "baseline": {
+        "sources": [
+          "DECO6500_Sem2_2026_assessment_summary.md",
+          "REIT6811_Sem2_2026_assessment_summary.md"
+        ],
+        "hit_at_3": 1,
+        "reciprocal_rank": 1.0,
+        "latency_ms": 1231.12
+      },
+      "rerank": {
+        "sources": [
+          "DECO6500_Sem2_2026_assessment_summary.md",
+          "INFS7203_Sem2_2026_assessment_summary.md"
+        ],
+        "hit_at_3": 1,
+        "reciprocal_rank": 1.0,
+        "latency_ms": 2530.49
+      },
+      "timing_ms": {
+        "vector_search_ms": 1222.77,
+        "keyword_search_ms": 8.29,
+        "rrf_fusion_ms": 0.05,
+        "hybrid_total_ms": 1231.12,
+        "rerank_ms": 1299.37
+      }
+    }
+  ]
+}

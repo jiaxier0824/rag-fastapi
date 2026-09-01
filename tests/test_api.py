@@ -8,10 +8,13 @@ from datetime import datetime
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
+from langchain_core.documents import Document
 
 from api import app
 from config.database import get_db
+from config.settings import settings
 from dependencies import get_knowledge_file_service, get_rag_service
+from rag import RagService
 
 
 class FakeKnowledgeFileService:
@@ -40,15 +43,12 @@ class FakeKnowledgeFileService:
         return None, 0
 
 
-class FakeChain:
-    def invoke(self, data, config):
-        assert data == {"input": "课程怎么计分？"}
-        assert config["configurable"]["session_id"] == "test-user"
-        return "课程成绩由作业和测验组成。"
-
-
 class FakeRagService:
-    chain = FakeChain()
+    def ask(self, question: str, session_id: str, trace_id: str):
+        assert question == "课程怎么计分？"
+        assert session_id == "test-user"
+        assert trace_id == "agent-trace-001"
+        return "课程成绩由作业和测验组成。", ["course.md"]
 
 
 async def fake_get_db():
@@ -107,6 +107,7 @@ def test_upload_rejects_unsupported_file_type():
 def test_chat_uses_request_question_and_session_id():
     response = build_client().post(
         "/api/rag/chat",
+        headers={"X-Trace-ID": "agent-trace-001"},
         json={
             "question": "课程怎么计分？",
             "session_id": "test-user",
@@ -114,7 +115,64 @@ def test_chat_uses_request_question_and_session_id():
     )
 
     assert response.status_code == 200
-    assert response.json() == {
-        "answer": "课程成绩由作业和测验组成。",
-        "session_id": "test-user",
-    }
+    assert response.json()["answer"] == "课程成绩由作业和测验组成。"
+    assert response.json()["session_id"] == "test-user"
+    assert response.json()["sources"] == [{"filename": "course.md"}]
+    assert response.json()["trace_id"] == "agent-trace-001"
+
+
+def test_rag_service_reuses_retrieved_documents_for_answer_and_sources():
+    class FakeVectorStoreService:
+        def search_with_trace(self, query: str, top_k: int):
+            assert query == "课程怎么计分？"
+            expected_top_k = (
+                settings.retrieval_candidate_top_k
+                if settings.rerank_enabled
+                else settings.retrieval_top_k
+            )
+            assert top_k == expected_top_k
+            return [
+                Document(
+                    page_content="作业占 60%。",
+                    metadata={"source": "assessment.md"},
+                ),
+                Document(
+                    page_content="测验占 40%。",
+                    metadata={"source": "assessment.md"},
+                ),
+            ], {"hybrid_total_ms": 1.0}
+
+    class FakeConversationChain:
+        def invoke(self, data, config):
+            assert data["input"] == "课程怎么计分？"
+            assert len(data["documents"]) == 2
+            assert config["configurable"]["session_id"] == "test-user"
+            return "课程成绩由作业和测验组成。"
+
+    rag_service = object.__new__(RagService)
+    rag_service.vector_service = FakeVectorStoreService()
+    rag_service.chain = FakeConversationChain()
+
+    class FakeRerankService:
+        def rerank(self, question: str, candidates):
+            assert question == "课程怎么计分？"
+            assert len(candidates) == 2
+            return candidates
+
+    rag_service.rerank_service = FakeRerankService()
+
+    class FakeTraceLogger:
+        def write(self, event):
+            assert event["trace_id"] == "trace-test"
+            assert event["sources"] == ["assessment.md"]
+
+    rag_service.trace_logger = FakeTraceLogger()
+
+    answer, source_filenames = rag_service.ask(
+        question="课程怎么计分？",
+        session_id="test-user",
+        trace_id="trace-test",
+    )
+
+    assert answer == "课程成绩由作业和测验组成。"
+    assert source_filenames == ["assessment.md"]
