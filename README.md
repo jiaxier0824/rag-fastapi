@@ -1,6 +1,6 @@
 # RAG FastAPI
 
-[![RAG tests](https://github.com/jiaxier0824/course-rag-fastapi/actions/workflows/test.yml/badge.svg)](https://github.com/jiaxier0824/course-rag-fastapi/actions/workflows/test.yml)
+[![RAG tests](https://github.com/jiaxier0824/rag-fastapi/actions/workflows/test.yml/badge.svg)](https://github.com/jiaxier0824/rag-fastapi/actions/workflows/test.yml)
 
 一个面向课程资料的 RAG 知识库服务。支持上传 Markdown/TXT 文件、向量检索、带会话历史的问答，以及轻量网页界面。
 
