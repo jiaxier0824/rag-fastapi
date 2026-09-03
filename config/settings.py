@@ -55,7 +55,8 @@ class Settings(BaseSettings):
     dashscope_region: str = "cn-beijing"
     observability_log_path: str = "./logs/rag_requests.jsonl"
     embedding_model_name: str = "text-embedding-v4"
-    chat_model_name: str = "qwen3.7-max"
+    # 课程资料问答优先响应速度；复杂推理留给上游 Agent 按需处理。
+    chat_model_name: str = "qwen-turbo"
 
     model_config = SettingsConfigDict(
         env_file=".env",

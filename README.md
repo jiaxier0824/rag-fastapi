@@ -15,7 +15,7 @@
 - MySQL 保存知识文件元数据
 - 文件原文、MySQL 记录、Chroma 切片三处同步管理
 - MD5 内容去重，避免重复上传相同资料
-- 基于 `qwen3.7-max` 的 RAG 问答
+- 基于 `qwen-turbo` 的低延迟 RAG 问答
 - 返回回答引用的来源文件名，便于用户追溯资料来源
 - 请求级 `trace_id` 与 JSONL 调用链日志，记录检索、重排、生成耗时和来源
 - 基于 `session_id` 的多轮对话历史
@@ -62,7 +62,7 @@ DASHSCOPE_API_KEY=你的百炼API密钥
 RERANK_ENABLED=true
 RERANK_MODEL_NAME=qwen3-rerank
 DASHSCOPE_WORKSPACE_ID=你的业务空间ID
-CHAT_MODEL_NAME=qwen3.7-max
+CHAT_MODEL_NAME=qwen-turbo
 DB_PASSWORD=你的MySQL密码
 ```
 
