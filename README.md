@@ -2,7 +2,7 @@
 
 [![RAG tests](https://github.com/jiaxier0824/rag-fastapi/actions/workflows/test.yml/badge.svg)](https://github.com/jiaxier0824/rag-fastapi/actions/workflows/test.yml)
 
-一个面向课程资料的 RAG 知识库服务。支持上传 Markdown/TXT 文件、向量检索、带会话历史的问答，以及轻量网页界面。
+一个面向课程资料的 RAG 知识库服务。支持上传 Markdown/TXT 文件、向量检索、带会话历史的问答，以及同时展示 RAG 与 Agent 能力的学习工作台。
 
 它是独立服务；另一个 `RAG Agent FastAPI` 项目通过 HTTP 调用本服务，把知识库检索作为 Agent 工具。
 
@@ -19,7 +19,8 @@
 - 返回回答引用的来源文件名，便于用户追溯资料来源
 - 请求级 `trace_id` 与 JSONL 调用链日志，记录检索、重排、生成耗时和来源
 - 基于 `session_id` 的多轮对话历史
-- FastAPI 接口文档与轻量网页问答界面
+- FastAPI 接口文档与 UQ 风格学习工作台
+- 在同一前端切换 RAG 直接问答和 Agent 任务执行，并实时展示 Agent 状态、工具调用、来源与 trace
 
 ## 技术栈
 
@@ -120,6 +121,8 @@ uvicorn api:app --reload --port 8000
 - `GET /api/knowledge/files`：分页查看资料
 - `DELETE /api/knowledge/files/{file_id}`：删除资料及关联向量
 - `POST /api/rag/chat`：基于知识库进行问答
+- `GET /api/agent/health`：检查独立 Agent 服务状态
+- `POST /api/agent/chat/stream`：将任务流式转发给独立 Agent 服务
 
 问答请求示例：
 
@@ -145,6 +148,9 @@ Docker 环境会自动使用独立的 `rag_user` 账号；部署前请在 `.env`
 仍然使用 `http://127.0.0.1:8000`，不会受影响。
 
 首次启动会自动创建 MySQL 表。浏览器打开 `http://127.0.0.1:8000`。
+
+若同时运行 `RAG Agent FastAPI` 项目的 Compose 编排，网页会启用 Agent 任务模式；
+RAG 仍通过独立接口工作，Agent 通过 HTTP 调用 RAG 工具。只启动本仓库时，RAG 问答模式不受影响。
 
 停止服务但保留数据：
 

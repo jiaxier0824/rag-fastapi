@@ -3,6 +3,7 @@ const state = {
   busy: false,
   files: [],
   course: '',
+  mode: 'rag',
 };
 
 const welcomeMarkup = document.querySelector('#chat-messages').innerHTML;
@@ -64,10 +65,11 @@ function formatSize(bytes) {
 
 async function checkHealth() {
   try {
-    const response = await fetch('/health');
-    if (!response.ok) throw new Error();
-    elements.status.textContent = '知识库服务运行正常';
-    document.querySelector('#connection-chip').textContent = '知识库已连接';
+    const [ragResponse, agentResponse] = await Promise.all([fetch('/health'), fetch('/api/agent/health')]);
+    if (!ragResponse.ok) throw new Error();
+    const agentOnline = agentResponse.ok;
+    elements.status.textContent = agentOnline ? 'RAG 与 Agent 均已连接' : 'RAG 正常 · Agent 离线';
+    document.querySelector('#connection-chip').textContent = agentOnline ? '双服务已连接' : 'RAG 已连接';
     document.querySelector('#connection-chip').classList.add('connected');
     document.querySelector('.sidebar-footer').classList.add('connected');
   } catch {
@@ -135,6 +137,88 @@ function addMessage(role, text, sources = []) {
   return article;
 }
 
+function setMode(mode) {
+  if (state.busy || !['rag', 'agent'].includes(mode)) return;
+  state.mode = mode;
+  document.body.classList.toggle('agent-mode', mode === 'agent');
+  document.querySelectorAll('[data-mode]').forEach(button => {
+    const active = button.dataset.mode === mode;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  document.querySelectorAll('[data-set-mode]').forEach(button => button.classList.toggle('active', button.dataset.setMode === mode));
+  document.querySelector('#active-mode-label').textContent = mode === 'agent' ? 'Agent 任务执行' : 'RAG 知识问答';
+  document.querySelector('#composer-mode-title').textContent = mode === 'agent' ? 'Agent 任务执行' : '知识库问答';
+  document.querySelector('#composer-mode-hint').textContent = mode === 'agent' ? '规划任务并自主选择工具' : '从已上传资料中寻找答案';
+  document.querySelector('#send-label').textContent = mode === 'agent' ? '执行' : '发送';
+  elements.question.placeholder = mode === 'agent'
+    ? '描述一个任务，例如：为 INFS7410 制定复习计划…'
+    : '今天想弄懂什么？问问你的课程资料…';
+  elements.question.focus();
+}
+
+function addAgentRun() {
+  const article = document.createElement('article');
+  article.className = 'message assistant agent-message';
+  article.innerHTML = '<span class="avatar agent-avatar">A</span><div class="bubble"><div class="agent-run-title"><span>AGENT RUN</span><b>执行中</b></div><div class="agent-progress" aria-live="polite"></div><div class="message-text"></div><div class="agent-meta"></div></div>';
+  elements.messages.append(article);
+  return article;
+}
+
+async function runAgentTask(question) {
+  const article = addAgentRun();
+  const progress = article.querySelector('.agent-progress');
+  const answer = article.querySelector('.message-text');
+  const meta = article.querySelector('.agent-meta');
+  const runState = article.querySelector('.agent-run-title b');
+  const statuses = new Set();
+  const toolLabels = {search_course_knowledge: '课程资料检索', create_or_update_study_plan: '创建学习计划', get_study_plan: '读取学习计划', list_study_plans: '列出学习计划', save_learning_preferences: '保存学习偏好'};
+  const addStatus = content => {
+    if (!content || statuses.has(content)) return;
+    statuses.add(content);
+    progress.insertAdjacentHTML('beforeend', `<span><i></i>${escapeHtml(content)}</span>`);
+    elements.messages.scrollTop = elements.messages.scrollHeight;
+  };
+  addStatus('Agent 正在分析任务');
+  const response = await fetch('/api/agent/chat/stream', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({question, session_id: state.sessionId}),
+  });
+  if (!response.ok || !response.body) throw new Error('Agent 服务连接失败');
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let finalEvent = null;
+  while (true) {
+    const {value, done} = await reader.read();
+    buffer += decoder.decode(value || new Uint8Array(), {stream: !done});
+    const blocks = buffer.split(/\r?\n\r?\n/);
+    buffer = blocks.pop() || '';
+    for (const block of blocks) {
+      const raw = block.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trim()).join('');
+      if (!raw) continue;
+      const event = JSON.parse(raw);
+      if (event.type === 'status') addStatus(event.content);
+      if (event.type === 'content') {
+        answer.textContent += event.content || '';
+        elements.messages.scrollTop = elements.messages.scrollHeight;
+      }
+      if (event.type === 'error') throw new Error(event.content || 'Agent 执行失败');
+      if (event.type === 'done') finalEvent = event;
+    }
+    if (done) break;
+  }
+  runState.textContent = '已完成';
+  runState.classList.add('done');
+  if (!answer.textContent.trim()) answer.textContent = '任务已执行完成。';
+  if (finalEvent) {
+    const tools = (finalEvent.tools_called || []).map(tool => toolLabels[tool] || tool);
+    const sources = finalEvent.sources || [];
+    meta.innerHTML = `${tools.length ? `<div><strong>调用工具</strong>${tools.map(tool => `<span class="tool-chip">${escapeHtml(tool)}</span>`).join('')}</div>` : ''}${sources.length ? `<div><strong>参考资料</strong>${sources.map(source => `<span class="source-chip">${escapeHtml(source.filename)}</span>`).join('')}</div>` : ''}${finalEvent.trace_id ? `<small>TRACE · ${escapeHtml(finalEvent.trace_id.slice(0, 12))}</small>` : ''}`;
+  }
+}
+
 function newConversationMarkup() {
   return `
     <article class="welcome-card new-conversation-card">
@@ -157,23 +241,28 @@ async function sendQuestion(question) {
   elements.send.disabled = true;
   addMessage('user', question);
   elements.question.value = '';
-  const typing = document.createElement('p');
-  typing.className = 'typing';
-  typing.textContent = '正在检索你的知识库…';
-  elements.messages.append(typing);
+  let typing = null;
   try {
-    const response = await fetch('/api/rag/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, session_id: state.sessionId }),
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.detail || '问答请求失败');
-    addMessage('assistant', result.answer, result.sources || []);
+    if (state.mode === 'agent') {
+      await runAgentTask(question);
+    } else {
+      typing = document.createElement('p');
+      typing.className = 'typing';
+      typing.textContent = '正在检索你的知识库…';
+      elements.messages.append(typing);
+      const response = await fetch('/api/rag/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, session_id: state.sessionId }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.detail || '问答请求失败');
+      addMessage('assistant', result.answer, result.sources || []);
+    }
   } catch (error) {
-    addMessage('assistant', `暂时无法回答：${error.message}`);
+    addMessage('assistant', `暂时无法完成：${error.message}`);
   } finally {
-    typing.remove();
+    typing?.remove();
     state.busy = false;
     elements.send.disabled = false;
     elements.newChat.disabled = false;
@@ -198,12 +287,13 @@ elements.fileList.addEventListener('click', async (event) => {
 });
 elements.form.addEventListener('submit', (event) => { event.preventDefault(); sendQuestion(elements.question.value.trim()); });
 elements.question.addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); elements.form.requestSubmit(); } });
-elements.messages.addEventListener('click', event => { const button = event.target.closest('.suggestion'); if (button) { elements.question.value = button.dataset.question; elements.question.focus(); } });
+elements.messages.addEventListener('click', event => { const button = event.target.closest('.suggestion'); if (button) { setMode(button.dataset.suggestionMode || 'rag'); elements.question.value = button.dataset.question; elements.question.focus(); } });
 elements.newChat.addEventListener('click', () => {
   state.sessionId = `uq-study-${crypto.randomUUID()}`;
   if (state.busy) return;
   elements.messages.innerHTML = welcomeMarkup;
   renderCourses();
+  setMode(state.mode);
   elements.messages.scrollTop = 0;
   elements.question.focus();
   showToast('已开启新的学习会话');
@@ -212,6 +302,8 @@ elements.newChat.addEventListener('click', () => {
 checkHealth();
 loadFiles();
 searchInput.addEventListener('input', renderFiles);
+document.querySelector('.mode-switch').addEventListener('click', event => { const button = event.target.closest('[data-mode]'); if (button) setMode(button.dataset.mode); });
+elements.messages.addEventListener('click', event => { const button = event.target.closest('[data-set-mode]'); if (button) setMode(button.dataset.setMode); });
 elements.messages.addEventListener('click', event => {
   const card = event.target.closest('[data-open-course]');
   if (!card) return;
