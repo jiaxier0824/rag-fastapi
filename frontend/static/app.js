@@ -7,9 +7,21 @@ const state = {
 
 const welcomeMarkup = document.querySelector('#chat-messages').innerHTML;
 const searchInput = document.querySelector('#file-search');
+const courseFilters = document.querySelector('.course-filters');
+function courseOf(filename) {
+  return filename.toUpperCase().match(/(?:^|[^A-Z0-9])([A-Z]{4}\d{4})(?=[^A-Z0-9]|$)/)?.[1] || '';
+}
+function renderCourses() {
+  const courses = [...new Set(state.files.map(file => courseOf(file.filename)).filter(Boolean))].sort();
+  if (!courses.includes(state.course)) state.course = '';
+  courseFilters.innerHTML = ['', ...courses].map(course => {
+    const count = course ? state.files.filter(file => courseOf(file.filename) === course).length : state.files.length;
+    return `<button class="${state.course === course ? 'active' : ''}" data-course="${course}" aria-pressed="${state.course === course}">${course || '全部'} <span>${count}</span></button>`;
+  }).join('');
+}
 function renderFiles() {
   const term = searchInput.value.trim().toLowerCase();
-  const files = state.files.filter(file => file.filename.toLowerCase().includes(term) && file.filename.toUpperCase().includes(state.course));
+  const files = state.files.filter(file => file.filename.toLowerCase().includes(term) && (!state.course || courseOf(file.filename) === state.course));
   elements.fileList.innerHTML = files.map(file => `<div class="file-row"><span class="file-icon">${file.filename.endsWith('.md') ? 'MD' : 'TXT'}</span><div class="file-info"><div class="file-name" title="${escapeHtml(file.filename)}">${escapeHtml(file.filename)}</div><div class="file-meta">${formatSize(file.file_size)} · ${file.chunk_count} 个切片</div></div><button class="delete-file" type="button" data-file-id="${escapeHtml(file.file_id)}" data-filename="${escapeHtml(file.filename)}" aria-label="删除 ${escapeHtml(file.filename)}">×</button></div>`).join('') || '<p class="muted">没有匹配的资料。试试其他课程或文件名。</p>';
 }
 
@@ -60,24 +72,22 @@ async function checkHealth() {
 
 async function loadFiles() {
   try {
-    const response = await fetch('/api/knowledge/files?page=1&page_size=100');
-    if (!response.ok) throw new Error('无法读取文件列表');
-    const data = await response.json();
-    elements.fileCount.textContent = data.total;
-    state.files = data.items;
+    const files = [];
+    let page = 1;
+    let total = 0;
+    do {
+      const response = await fetch(`/api/knowledge/files?page=${page}&page_size=100`);
+      if (!response.ok) throw new Error('无法读取文件列表');
+      const data = await response.json();
+      total = data.total;
+      files.push(...data.items);
+      if (!data.items.length) break;
+      page += 1;
+    } while (files.length < total);
+    elements.fileCount.textContent = files.length;
+    state.files = files;
+    renderCourses();
     renderFiles();
-    return;
-    if (!data.items.length) {
-      elements.fileList.innerHTML = '<p class="muted">还没有资料。先上传一份课程笔记吧。</p>';
-      return;
-    }
-    elements.fileList.innerHTML = data.items.map((file) => `
-      <div class="file-row">
-        <span class="file-icon">${file.filename.endsWith('.md') ? 'MD' : 'TXT'}</span>
-        <div class="file-info"><div class="file-name" title="${escapeHtml(file.filename)}">${escapeHtml(file.filename)}</div>
-        <div class="file-meta">${formatSize(file.file_size)} · ${file.chunk_count} 个切片</div></div>
-        <button class="delete-file" type="button" data-file-id="${file.file_id}" data-filename="${escapeHtml(file.filename)}" aria-label="删除 ${escapeHtml(file.filename)}">×</button>
-      </div>`).join('');
   } catch (error) {
     elements.fileList.innerHTML = '<p class="muted">文件列表加载失败，请检查后端服务。</p>';
   }
@@ -195,11 +205,13 @@ elements.newChat.addEventListener('click', () => {
 checkHealth();
 loadFiles();
 searchInput.addEventListener('input', renderFiles);
-document.querySelectorAll('[data-course]').forEach(button => button.addEventListener('click', () => {
+courseFilters.addEventListener('click', event => {
+  const button = event.target.closest('[data-course]');
+  if (!button) return;
   state.course = button.dataset.course;
   document.querySelectorAll('[data-course]').forEach(item => { item.classList.toggle('active', item === button); item.setAttribute('aria-pressed', String(item === button)); });
   renderFiles();
-}));
+});
 function toggleLibrary(open) {
   document.body.classList.toggle('library-open', open);
   document.querySelector('#library-backdrop').hidden = !open;
