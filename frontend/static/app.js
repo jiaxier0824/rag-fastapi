@@ -18,11 +18,17 @@ function renderCourses() {
     const count = course ? state.files.filter(file => courseOf(file.filename) === course).length : state.files.length;
     return `<button class="${state.course === course ? 'active' : ''}" data-course="${course}" aria-pressed="${state.course === course}">${course || '全部'} <span>${count}</span></button>`;
   }).join('');
+  const cards = document.querySelector('#course-cards');
+  const subjects = {DECO6500:'系统思维与设计', INFS7203:'数据挖掘', INFS7410:'信息检索', REIT6811:'研究方法'};
+  if (cards) cards.innerHTML = courses.map((course, index) => `<button class="course-card tone-${index % 4}" data-open-course="${course}"><span class="course-number">0${index + 1} <span>↗</span></span><strong>${course}</strong><span class="course-subject">${subjects[course] || '课程学习资料'}</span><small>${state.files.filter(file => courseOf(file.filename) === course).length} 份资料 <span>查看资料 →</span></small></button>`).join('');
+}
+function fileTitle(filename) {
+  return filename.replace(/\.(md|txt)$/i, '').replace(/^[A-Za-z]{4}\d{4}[_ -]*/, '').replace(/(Week|Lecture)(\d+)/g, '$1 $2 ·').replaceAll('_', ' ');
 }
 function renderFiles() {
   const term = searchInput.value.trim().toLowerCase();
   const files = state.files.filter(file => file.filename.toLowerCase().includes(term) && (!state.course || courseOf(file.filename) === state.course));
-  elements.fileList.innerHTML = files.map(file => `<div class="file-row"><span class="file-icon">${file.filename.endsWith('.md') ? 'MD' : 'TXT'}</span><div class="file-info"><div class="file-name" title="${escapeHtml(file.filename)}">${escapeHtml(file.filename)}</div><div class="file-meta">${formatSize(file.file_size)} · ${file.chunk_count} 个切片</div></div><button class="delete-file" type="button" data-file-id="${escapeHtml(file.file_id)}" data-filename="${escapeHtml(file.filename)}" aria-label="删除 ${escapeHtml(file.filename)}">×</button></div>`).join('') || '<p class="muted">没有匹配的资料。试试其他课程或文件名。</p>';
+  elements.fileList.innerHTML = files.map(file => `<div class="file-row"><span class="file-icon">${file.filename.endsWith('.md') ? 'MD' : 'TXT'}</span><div class="file-info"><div class="file-name" title="${escapeHtml(file.filename)}">${escapeHtml(fileTitle(file.filename))}</div><div class="file-meta">${courseOf(file.filename)} · ${formatSize(file.file_size)}</div></div><button class="delete-file" type="button" data-file-id="${escapeHtml(file.file_id)}" data-filename="${escapeHtml(file.filename)}" aria-label="删除 ${escapeHtml(file.filename)}">×</button></div>`).join('') || '<p class="muted">没有匹配的资料。试试其他课程或文件名。</p>';
 }
 
 const elements = {
@@ -197,6 +203,7 @@ elements.newChat.addEventListener('click', () => {
   state.sessionId = `uq-study-${crypto.randomUUID()}`;
   if (state.busy) return;
   elements.messages.innerHTML = welcomeMarkup;
+  renderCourses();
   elements.messages.scrollTop = 0;
   elements.question.focus();
   showToast('已开启新的学习会话');
@@ -205,6 +212,15 @@ elements.newChat.addEventListener('click', () => {
 checkHealth();
 loadFiles();
 searchInput.addEventListener('input', renderFiles);
+elements.messages.addEventListener('click', event => {
+  const card = event.target.closest('[data-open-course]');
+  if (!card) return;
+  state.course = card.dataset.openCourse;
+  searchInput.value = '';
+  renderCourses();
+  renderFiles();
+  if (window.innerWidth <= 760) toggleLibrary(true);
+});
 courseFilters.addEventListener('click', event => {
   const button = event.target.closest('[data-course]');
   if (!button) return;
