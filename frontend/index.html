@@ -1,116 +1,29 @@
-<!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#f5f7ff" />
-    <title>UQ Study Search</title>
-    <link rel="stylesheet" href="/static/styles.css" />
-  </head>
-  <body>
-    <main class="app-shell">
-      <aside class="sidebar" aria-label="知识库">
-        <div class="brand">
-          <div class="brand-mark" aria-label="UQ Study Search 标识">UQ</div>
-          <div>
-            <p class="eyebrow">UQ STUDENT TOOLKIT</p>
-            <h1>Study Search</h1>
-          </div>
-          <span class="beta-pill">BETA</span>
-        </div>
-
-        <section class="workspace-card" aria-label="当前工作区">
-          <div class="workspace-icon" aria-hidden="true">⌘</div>
-          <div>
-            <span>当前工作区</span>
-            <strong>我的课程资料库</strong>
-          </div>
-          <span class="workspace-arrow" aria-hidden="true">⌄</span>
-        </section>
-
-        <section class="upload-card">
-          <div class="section-heading">
-            <span>添加学习资料</span>
-            <span class="file-type">.md · .txt</span>
-          </div>
-          <label class="drop-zone" id="drop-zone" for="file-input">
-            <input id="file-input" type="file" accept=".md,.txt,text/plain,text/markdown" />
-            <span class="upload-icon" aria-hidden="true">↑</span>
-            <strong>上传课程资料</strong>
-            <small>拖入文件，或点击选择</small>
-          </label>
-          <p class="upload-note">课件笔记、Course Profile、作业要求都可以。</p>
-        </section>
-
-        <section class="library" aria-live="polite">
-          <div class="library-title">
-            <div>
-              <span>我的知识库</span>
-              <small>已加入检索范围</small>
-            </div>
-            <span id="file-count" class="count-badge">0</span>
-          </div>
-          <div id="file-list" class="file-list">
-            <p class="muted">正在读取资料…</p>
-          </div>
-        </section>
-
-        <footer class="sidebar-footer">
-          <span class="status-dot"></span>
-          <span>
-            <b id="service-status">正在连接服务</b>
-            <small>Powered by RAG retrieval</small>
-          </span>
-        </footer>
-      </aside>
-
-      <section class="chat-area">
-        <header class="topbar">
-          <div class="page-title">
-            <div class="title-icon" aria-hidden="true">✦</div>
-            <div>
-              <p class="eyebrow">UQ LEARNING COMPANION</p>
-              <h2>问问你的课程资料</h2>
-            </div>
-          </div>
-          <div class="topbar-actions">
-            <span class="online-chip"><i></i> 已连接</span>
-            <button id="new-chat" class="secondary-button" type="button"><span aria-hidden="true">＋</span> 新建对话</button>
-          </div>
-        </header>
-
-        <div id="chat-messages" class="messages" aria-live="polite">
-          <article class="welcome-card">
-            <div class="hero-orb" aria-hidden="true"><span>✦</span></div>
-            <p class="eyebrow">READY WHEN YOU ARE</p>
-            <h3>让每一份课程资料，<em>都能即时回答你。</em></h3>
-            <p>上传 Course Profile、课堂笔记或作业说明。我会从你的资料中检索相关内容，再结合这次对话的上下文回答。</p>
-            <div class="capabilities" aria-label="功能特点">
-              <span>⌕ 语义检索</span>
-              <span>◌ 对话记忆</span>
-              <span>↗ 即时回答</span>
-            </div>
-            <p class="suggestion-label">试着问一个问题</p>
-            <div class="suggestions">
-              <button type="button" class="suggestion"><span>截止日期</span>这门课的 Assignment 2 截止时间是什么？<b>↗</b></button>
-              <button type="button" class="suggestion"><span>概念解释</span>根据资料解释 RAG 的检索阶段。<b>↗</b></button>
-              <button type="button" class="suggestion"><span>复习规划</span>总结我上传的本周复习重点。<b>↗</b></button>
-            </div>
-          </article>
-        </div>
-
-        <form id="chat-form" class="composer">
-          <label class="sr-only" for="question-input">你的问题</label>
-          <div class="composer-label"><span>Ask your knowledge base</span><span>⌘ Enter 发送</span></div>
-          <textarea id="question-input" rows="1" maxlength="2000" placeholder="例如：这门课的作业要求里，迟交规则是什么？"></textarea>
-          <button id="send-button" class="send-button" type="submit" aria-label="发送问题">
-            <span>发送</span><span aria-hidden="true">↗</span>
-          </button>
-          <p><span class="lock" aria-hidden="true">◒</span> 回答仅基于你上传的资料生成；请自行核对课程官网的最新通知。</p>
-        </form>
-      </section>
-    </main>
-    <div id="toast" class="toast" role="status"></div>
-    <script src="/static/app.js"></script>
-  </body>
-</html>
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#51247a"><title>Study Space · UQ 学习工作台</title><link rel="stylesheet" href="/static/styles.css?v=20260909"></head>
+<body><main class="app-shell">
+<aside class="sidebar" id="library-panel" aria-label="课程资料库">
+ <a class="brand" href="/"><span class="brand-mark">s<span>✦</span></span><span><strong>Study Space.</strong><small>YOUR PERSONAL LEARNING SPACE</small></span></a>
+ <div class="workspace-card"><span class="workspace-icon">UQ</span><div><strong>我的学习工作台</strong><small>University of Queensland · 学生项目</small></div></div>
+ <div class="library-heading"><div><span class="eyebrow">MY LIBRARY</span><h1>课程资料库 <span id="file-count">—</span></h1></div><button id="close-library" class="icon-button mobile-only" aria-label="关闭资料库">×</button></div>
+ <label class="library-search"><span aria-hidden="true">⌕</span><input id="file-search" type="search" placeholder="搜索课程或文件名" aria-label="搜索资料文件名"></label>
+ <div class="course-filters" aria-label="按课程筛选资料"><button class="active" data-course="" aria-pressed="true">全部</button><button data-course="INFS7410" aria-pressed="false">INFS7410</button><button data-course="REIT6811" aria-pressed="false">REIT6811</button></div>
+ <div id="file-list" class="file-list" aria-live="polite"><p class="muted">正在读取你的资料…</p></div>
+ <section class="upload-card"><label class="drop-zone" id="drop-zone" for="file-input"><input id="file-input" type="file" accept=".md,.txt,text/plain,text/markdown"><span class="upload-icon">＋</span><strong id="upload-label">添加课程资料</strong><small>点击或拖入文件 · MD / TXT</small></label></section>
+ <footer class="sidebar-footer"><span class="status-dot"></span><span id="service-status">正在连接知识库…</span><span class="footer-spark">✦</span></footer>
+</aside>
+<button id="library-backdrop" class="library-backdrop" aria-label="关闭资料库" hidden></button>
+<section class="chat-area">
+ <header class="topbar"><div class="breadcrumb"><button id="open-library" class="icon-button mobile-only" aria-label="打开课程资料库" aria-expanded="false" aria-controls="library-panel">☰</button><span class="breadcrumb-icon">⌂</span><span>我的工作台</span><span class="slash">/</span><strong>学习助手</strong></div><div class="topbar-actions"><span id="connection-chip" class="online-chip">连接中</span><button id="new-chat" class="secondary-button">＋ 新对话</button><span class="profile-avatar" title="UQ Student">J</span></div></header>
+ <div id="chat-messages" class="messages" aria-live="polite"><article class="welcome-card">
+  <div class="welcome-heading"><div><p class="eyebrow">A LITTLE CLARITY. A LOT OF POSSIBILITY.</p><h2>把资料交给我，<span>把时间留给思考。</span></h2><p class="intro">你的课程、笔记与灵感，在这里连接起来。</p></div><span class="heading-spark" aria-hidden="true">✳</span></div>
+  <section class="campus-card" aria-label="校园学习空间"><div class="campus-copy"><span class="campus-tag">● &nbsp; MADE FOR YOUR UQ JOURNEY</span><h3>A space to learn.<br>A place to grow.</h3><p>从一份 Course Profile 开始，<br>让每个问题都有据可循。</p><span class="campus-caption">STUDY SPACE &nbsp; ↗ &nbsp; BRISBANE, AUSTRALIA</span></div><div class="campus-image" role="img" aria-label="暖阳下的砂岩校园庭院"><span class="image-note">A fresh perspective, every day.</span></div></section>
+  <div class="section-heading"><h3>从一个好问题开始</h3><span>选择灵感，开始提问 ↙</span></div>
+  <div class="suggestions">
+   <button class="suggestion" data-question="INFS7410 的 Weekly quizzes 如何计分？"><span class="suggestion-icon violet">▦</span><strong>理清课程要求 <span>↗</span></strong><p>INFS7410 的 Weekly quizzes<br>如何计分？</p><small>课程规则</small></button>
+   <button class="suggestion" data-question="根据我上传的资料，解释 RAG 的检索阶段，并注明来源。"><span class="suggestion-icon peach">✧</span><strong>把概念讲明白 <span>↗</span></strong><p>根据资料，解释 RAG<br>的检索阶段。</p><small>概念理解</small></button>
+   <button class="suggestion" data-question="根据我上传的 INFS7410 资料，总结复习重点，并注明来源。"><span class="suggestion-icon green">☷</span><strong>找到复习重点 <span>↗</span></strong><p>从 INFS7410 资料中，<br>整理一份复习提纲。</p><small>学习梳理</small></button>
+  </div>
+  <div class="welcome-note"><span>✦</span><p>少一点翻找，多一点理解。<span>回答附带资料来源，方便你随时核对。</span></p></div>
+ </article></div>
+ <div class="composer-wrap"><form id="chat-form" class="composer"><label class="sr-only" for="question-input">向课程资料提问</label><textarea id="question-input" rows="2" maxlength="2000" placeholder="今天想弄懂什么？问问你的课程资料…"></textarea><div class="composer-bottom"><span class="knowledge-mode"><span>✦</span> 知识库问答 <span class="mode-divider">|</span><span class="composer-hint">从已上传资料中寻找答案</span></span><button id="send-button" class="send-button" type="submit" aria-label="发送问题"><span>发送</span><span>↑</span></button></div></form><div class="composer-footnote"><span>AI 回答请结合原始资料核对 · 课程变更以官方通知为准</span><span>Enter 发送 · Shift + Enter 换行</span></div></div>
+</section></main><div id="toast" class="toast" role="status"></div><script src="/static/app.js?v=20260909"></script></body></html>

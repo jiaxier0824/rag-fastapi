@@ -1,7 +1,17 @@
 const state = {
   sessionId: `uq-study-${crypto.randomUUID()}`,
   busy: false,
+  files: [],
+  course: '',
 };
+
+const welcomeMarkup = document.querySelector('#chat-messages').innerHTML;
+const searchInput = document.querySelector('#file-search');
+function renderFiles() {
+  const term = searchInput.value.trim().toLowerCase();
+  const files = state.files.filter(file => file.filename.toLowerCase().includes(term) && file.filename.toUpperCase().includes(state.course));
+  elements.fileList.innerHTML = files.map(file => `<div class="file-row"><span class="file-icon">${file.filename.endsWith('.md') ? 'MD' : 'TXT'}</span><div class="file-info"><div class="file-name" title="${escapeHtml(file.filename)}">${escapeHtml(file.filename)}</div><div class="file-meta">${formatSize(file.file_size)} · ${file.chunk_count} 个切片</div></div><button class="delete-file" type="button" data-file-id="${escapeHtml(file.file_id)}" data-filename="${escapeHtml(file.filename)}" aria-label="删除 ${escapeHtml(file.filename)}">×</button></div>`).join('') || '<p class="muted">没有匹配的资料。试试其他课程或文件名。</p>';
+}
 
 const elements = {
   fileInput: document.querySelector('#file-input'),
@@ -39,8 +49,12 @@ async function checkHealth() {
     const response = await fetch('/health');
     if (!response.ok) throw new Error();
     elements.status.textContent = '知识库服务运行正常';
+    document.querySelector('#connection-chip').textContent = '知识库已连接';
+    document.querySelector('#connection-chip').classList.add('connected');
+    document.querySelector('.sidebar-footer').classList.add('connected');
   } catch {
     elements.status.textContent = '服务暂时无法连接';
+    document.querySelector('#connection-chip').textContent = '连接异常';
   }
 }
 
@@ -50,6 +64,9 @@ async function loadFiles() {
     if (!response.ok) throw new Error('无法读取文件列表');
     const data = await response.json();
     elements.fileCount.textContent = data.total;
+    state.files = data.items;
+    renderFiles();
+    return;
     if (!data.items.length) {
       elements.fileList.innerHTML = '<p class="muted">还没有资料。先上传一份课程笔记吧。</p>';
       return;
@@ -94,7 +111,7 @@ function addMessage(role, text, sources = []) {
   const article = document.createElement('article');
   article.className = `message ${role}`;
   const sourceMarkup = role === 'assistant' && sources.length
-    ? `<div class="source-list">资料来源：${sources.map((source) => escapeHtml(source.filename)).join('、')}</div>`
+    ? `<div class="source-list"><strong>↗ 参考资料 · ${sources.length} 个来源</strong>${sources.map((source) => `<span class="source-chip">${escapeHtml(source.filename)}</span>`).join('')}</div>`
     : '';
   article.innerHTML = `<span class="avatar">${role === 'user' ? '你' : 'UQ'}</span><div class="bubble"><div class="message-text">${escapeHtml(text)}</div>${sourceMarkup}</div>`;
   elements.messages.append(article);
@@ -119,6 +136,8 @@ function newConversationMarkup() {
 async function sendQuestion(question) {
   if (!question || state.busy) return;
   state.busy = true;
+  elements.messages.querySelector('.welcome-card')?.remove();
+  elements.newChat.disabled = true;
   elements.send.disabled = true;
   addMessage('user', question);
   elements.question.value = '';
@@ -141,6 +160,7 @@ async function sendQuestion(question) {
     typing.remove();
     state.busy = false;
     elements.send.disabled = false;
+    elements.newChat.disabled = false;
     elements.question.focus();
   }
 }
@@ -161,14 +181,36 @@ elements.fileList.addEventListener('click', async (event) => {
   } catch (error) { showToast(error.message); }
 });
 elements.form.addEventListener('submit', (event) => { event.preventDefault(); sendQuestion(elements.question.value.trim()); });
-elements.question.addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); elements.form.requestSubmit(); } });
-document.querySelectorAll('.suggestion').forEach((button) => button.addEventListener('click', () => { elements.question.value = button.textContent; elements.question.focus(); }));
+elements.question.addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); elements.form.requestSubmit(); } });
+elements.messages.addEventListener('click', event => { const button = event.target.closest('.suggestion'); if (button) { elements.question.value = button.dataset.question; elements.question.focus(); } });
 elements.newChat.addEventListener('click', () => {
   state.sessionId = `uq-study-${crypto.randomUUID()}`;
-  elements.messages.innerHTML = newConversationMarkup();
+  if (state.busy) return;
+  elements.messages.innerHTML = welcomeMarkup;
+  elements.messages.scrollTop = 0;
   elements.question.focus();
   showToast('已开启新的学习会话');
 });
 
 checkHealth();
 loadFiles();
+searchInput.addEventListener('input', renderFiles);
+document.querySelectorAll('[data-course]').forEach(button => button.addEventListener('click', () => {
+  state.course = button.dataset.course;
+  document.querySelectorAll('[data-course]').forEach(item => { item.classList.toggle('active', item === button); item.setAttribute('aria-pressed', String(item === button)); });
+  renderFiles();
+}));
+function toggleLibrary(open) {
+  document.body.classList.toggle('library-open', open);
+  document.querySelector('#library-backdrop').hidden = !open;
+  document.querySelector('#open-library').setAttribute('aria-expanded', String(open));
+  document.querySelector('.sidebar').inert = !open && window.innerWidth <= 760;
+  if (open) searchInput.focus();
+  else document.querySelector('#open-library').focus();
+}
+document.querySelector('#open-library').addEventListener('click', () => toggleLibrary(true));
+document.querySelector('#close-library').addEventListener('click', () => toggleLibrary(false));
+document.querySelector('#library-backdrop').addEventListener('click', () => toggleLibrary(false));
+document.addEventListener('keydown', event => { if (event.key === 'Escape' && document.body.classList.contains('library-open')) toggleLibrary(false); });
+window.addEventListener('resize', () => { document.querySelector('.sidebar').inert = window.innerWidth <= 760 && !document.body.classList.contains('library-open'); });
+document.querySelector('.sidebar').inert = window.innerWidth <= 760;
