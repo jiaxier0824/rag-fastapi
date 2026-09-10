@@ -4,6 +4,7 @@ const state = {
   files: [],
   course: '',
   mode: 'rag',
+  showAllFiles: false,
 };
 
 const welcomeMarkup = document.querySelector('#chat-messages').innerHTML;
@@ -21,15 +22,36 @@ function renderCourses() {
   }).join('');
   const cards = document.querySelector('#course-cards');
   const subjects = {DECO6500:'系统思维与设计', INFS7203:'数据挖掘', INFS7410:'信息检索', REIT6811:'研究方法'};
-  if (cards) cards.innerHTML = courses.map((course, index) => `<button class="course-card tone-${index % 4}" data-open-course="${course}"><span class="course-number">0${index + 1} <span>↗</span></span><strong>${course}</strong><span class="course-subject">${subjects[course] || '课程学习资料'}</span><small>${state.files.filter(file => courseOf(file.filename) === course).length} 份资料 <span>查看资料 →</span></small></button>`).join('');
+  if (cards) cards.innerHTML = courses.map((course, index) => `<button class="course-pill tone-${index % 4}" data-open-course="${course}"><i></i><strong>${course}</strong><span>${subjects[course] || '课程资料'}</span><b>${state.files.filter(file => courseOf(file.filename) === course).length}</b></button>`).join('');
 }
 function fileTitle(filename) {
   return filename.replace(/\.(md|txt)$/i, '').replace(/^[A-Za-z]{4}\d{4}[_ -]*/, '').replace(/(Week|Lecture)(\d+)/g, '$1 $2 ·').replaceAll('_', ' ');
 }
 function renderFiles() {
   const term = searchInput.value.trim().toLowerCase();
-  const files = state.files.filter(file => file.filename.toLowerCase().includes(term) && (!state.course || courseOf(file.filename) === state.course));
-  elements.fileList.innerHTML = files.map(file => `<div class="file-row"><span class="file-icon">${file.filename.endsWith('.md') ? 'MD' : 'TXT'}</span><div class="file-info"><div class="file-name" title="${escapeHtml(file.filename)}">${escapeHtml(fileTitle(file.filename))}</div><div class="file-meta">${courseOf(file.filename)} · ${formatSize(file.file_size)}</div></div><button class="delete-file" type="button" data-file-id="${escapeHtml(file.file_id)}" data-filename="${escapeHtml(file.filename)}" aria-label="删除 ${escapeHtml(file.filename)}">×</button></div>`).join('') || '<p class="muted">没有匹配的资料。试试其他课程或文件名。</p>';
+  const matched = state.files.filter(file => file.filename.toLowerCase().includes(term) && (!state.course || courseOf(file.filename) === state.course));
+  const collapsed = !state.showAllFiles && !state.course && !term;
+  const files = collapsed ? matched.slice(0, 6) : matched;
+  const rows = files.map(file => `<div class="file-row"><span class="file-icon">${file.filename.endsWith('.md') ? 'MD' : 'TXT'}</span><div class="file-info"><div class="file-name" title="${escapeHtml(file.filename)}">${escapeHtml(fileTitle(file.filename))}</div><div class="file-meta">${courseOf(file.filename)} · ${formatSize(file.file_size)}</div></div><button class="delete-file" type="button" data-file-id="${escapeHtml(file.file_id)}" data-filename="${escapeHtml(file.filename)}" aria-label="删除 ${escapeHtml(file.filename)}">×</button></div>`).join('');
+  const more = collapsed && matched.length > files.length ? `<button class="show-all-files" type="button" data-toggle-files>查看全部 ${matched.length} 份资料 ↓</button>` : '';
+  elements.fileList.innerHTML = rows ? rows + more : '<p class="muted">没有匹配的资料。试试其他课程或文件名。</p>';
+}
+
+function renderSuggestions() {
+  const deadline = new Date(Date.now() + 42 * 86400000).toISOString().slice(0, 10);
+  const items = state.mode === 'agent' ? [
+    ['☷', '列出已有计划', '列出我已经保存的学习计划'],
+    ['✦', '制定复习计划', `为 INFS7410 制定复习计划，截止日期 ${deadline}，每天学习 2 小时。`],
+    ['↗', '读取课程计划', '读取 INFS7410 已保存的学习计划'],
+  ] : [
+    ['▦', '理清课程要求', 'INFS7410 的 Weekly quizzes 如何计分？'],
+    ['✧', '把概念讲明白', '根据我上传的资料，解释 RAG 的检索阶段，并注明来源。'],
+    ['☰', '整理复习重点', '根据 INFS7410 资料整理本周复习重点，并注明来源。'],
+  ];
+  const box = document.querySelector('#suggestions');
+  if (box) box.innerHTML = items.map(([icon, title, question], index) => `<button class="suggestion" data-suggestion-mode="${state.mode}" data-question="${escapeHtml(question)}"><span class="suggestion-icon ${['violet', 'peach', 'green'][index]}">${icon}</span><strong>${title}<span>↗</span></strong><p>${escapeHtml(question)}</p></button>`).join('');
+  document.querySelector('#suggestion-title').textContent = state.mode === 'agent' ? '交给 Agent 完成' : '从一个好问题开始';
+  document.querySelector('#suggestion-hint').textContent = state.mode === 'agent' ? '选择一个任务示例' : '选择灵感，开始提问';
 }
 
 const elements = {
@@ -154,6 +176,7 @@ function setMode(mode) {
   elements.question.placeholder = mode === 'agent'
     ? '描述一个任务，例如：为 INFS7410 制定复习计划…'
     : '今天想弄懂什么？问问你的课程资料…';
+  renderSuggestions();
   elements.question.focus();
 }
 
@@ -275,6 +298,11 @@ elements.fileInput.addEventListener('change', (event) => uploadFile(event.target
 ['dragleave', 'drop'].forEach((eventName) => elements.dropZone.addEventListener(eventName, (event) => { event.preventDefault(); elements.dropZone.classList.remove('drag-over'); }));
 elements.dropZone.addEventListener('drop', (event) => uploadFile(event.dataTransfer.files[0]));
 elements.fileList.addEventListener('click', async (event) => {
+  if (event.target.closest('[data-toggle-files]')) {
+    state.showAllFiles = true;
+    renderFiles();
+    return;
+  }
   const button = event.target.closest('.delete-file');
   if (!button || !window.confirm(`确定删除「${button.dataset.filename}」吗？`)) return;
   try {
@@ -308,6 +336,7 @@ elements.messages.addEventListener('click', event => {
   const card = event.target.closest('[data-open-course]');
   if (!card) return;
   state.course = card.dataset.openCourse;
+  state.showAllFiles = !state.course;
   searchInput.value = '';
   renderCourses();
   renderFiles();
@@ -317,6 +346,7 @@ courseFilters.addEventListener('click', event => {
   const button = event.target.closest('[data-course]');
   if (!button) return;
   state.course = button.dataset.course;
+  state.showAllFiles = !state.course;
   document.querySelectorAll('[data-course]').forEach(item => { item.classList.toggle('active', item === button); item.setAttribute('aria-pressed', String(item === button)); });
   renderFiles();
 });
@@ -334,3 +364,4 @@ document.querySelector('#library-backdrop').addEventListener('click', () => togg
 document.addEventListener('keydown', event => { if (event.key === 'Escape' && document.body.classList.contains('library-open')) toggleLibrary(false); });
 window.addEventListener('resize', () => { document.querySelector('.sidebar').inert = window.innerWidth <= 760 && !document.body.classList.contains('library-open'); });
 document.querySelector('.sidebar').inert = window.innerWidth <= 760;
+renderSuggestions();
