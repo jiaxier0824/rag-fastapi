@@ -188,6 +188,20 @@ function addAgentRun() {
   return article;
 }
 
+function friendlyAgentStatus(content) {
+  if (content.includes('主模型暂时不可用')) return '正在切换备用模型';
+  if (content.includes('正在使用备用模型')) return '正在生成回答';
+  return content;
+}
+
+function cleanAgentAnswer(content) {
+  return content
+    .split(/\n+/)
+    .filter(line => !line.includes('检测到重复或过多的工具调用'))
+    .join('\n')
+    .trim();
+}
+
 async function runAgentTask(question) {
   const article = addAgentRun();
   const progress = article.querySelector('.agent-progress');
@@ -195,11 +209,15 @@ async function runAgentTask(question) {
   const meta = article.querySelector('.agent-meta');
   const runState = article.querySelector('.agent-run-title b');
   const statuses = new Set();
+  const executionNotes = [];
+  let responseText = '';
   const toolLabels = {search_course_knowledge: '课程资料检索', create_or_update_study_plan: '创建学习计划', get_study_plan: '读取学习计划', list_study_plans: '列出学习计划', save_learning_preferences: '保存学习偏好'};
   const addStatus = content => {
-    if (!content || statuses.has(content)) return;
-    statuses.add(content);
-    progress.insertAdjacentHTML('beforeend', `<span><i></i>${escapeHtml(content)}</span>`);
+    if (content.includes('主模型暂时不可用')) executionNotes.push('主模型暂时不可用，已自动切换备用模型。');
+    const visibleContent = friendlyAgentStatus(content);
+    if (!visibleContent || statuses.has(visibleContent)) return;
+    statuses.add(visibleContent);
+    progress.insertAdjacentHTML('beforeend', `<span><i></i>${escapeHtml(visibleContent)}</span>`);
     elements.messages.scrollTop = elements.messages.scrollHeight;
   };
   addStatus('Agent 正在分析任务');
@@ -224,8 +242,10 @@ async function runAgentTask(question) {
       const event = JSON.parse(raw);
       if (event.type === 'status') addStatus(event.content);
       if (event.type === 'content') {
-        answer.textContent += event.content || '';
-        elements.messages.scrollTop = elements.messages.scrollHeight;
+        responseText += event.content || '';
+        if ((event.content || '').includes('检测到重复或过多的工具调用')) {
+          executionNotes.push('系统已阻止重复工具调用，避免同一任务被重复执行。');
+        }
       }
       if (event.type === 'error') throw new Error(event.content || 'Agent 执行失败');
       if (event.type === 'done') finalEvent = event;
@@ -234,11 +254,11 @@ async function runAgentTask(question) {
   }
   runState.textContent = '已完成';
   runState.classList.add('done');
-  if (!answer.textContent.trim()) answer.textContent = '任务已执行完成。';
+  answer.textContent = cleanAgentAnswer(responseText) || '任务已执行完成。';
   if (finalEvent) {
     const tools = (finalEvent.tools_called || []).map(tool => toolLabels[tool] || tool);
     const sources = finalEvent.sources || [];
-    meta.innerHTML = `${tools.length ? `<div><strong>调用工具</strong>${tools.map(tool => `<span class="tool-chip">${escapeHtml(tool)}</span>`).join('')}</div>` : ''}${sources.length ? `<div><strong>参考资料</strong>${sources.map(source => `<span class="source-chip">${escapeHtml(source.filename)}</span>`).join('')}</div>` : ''}${finalEvent.trace_id ? `<small>TRACE · ${escapeHtml(finalEvent.trace_id.slice(0, 12))}</small>` : ''}`;
+    meta.innerHTML = `${tools.length ? `<div><strong>调用工具</strong>${tools.map(tool => `<span class="tool-chip">${escapeHtml(tool)}</span>`).join('')}</div>` : ''}${sources.length ? `<div><strong>参考资料</strong>${sources.map(source => `<span class="source-chip">${escapeHtml(source.filename)}</span>`).join('')}</div>` : ''}${executionNotes.length ? `<details class="run-details"><summary>查看执行详情</summary><p>${executionNotes.map(escapeHtml).join('<br>')}</p></details>` : ''}${finalEvent.trace_id ? `<small>TRACE · ${escapeHtml(finalEvent.trace_id.slice(0, 12))}</small>` : ''}`;
   }
 }
 
