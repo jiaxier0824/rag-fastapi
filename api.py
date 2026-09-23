@@ -16,7 +16,6 @@ from fastapi.staticfiles import StaticFiles
 from config.database import async_engine
 from routers.chat import router as chat_router
 from routers.knowledge import router as knowledge_router
-from routers.agent_proxy import router as agent_proxy_router
 
 
 @asynccontextmanager
@@ -42,7 +41,6 @@ app = FastAPI(
 # Router 只定义一组接口；在入口统一注册后，这些接口才属于 app。
 app.include_router(chat_router)
 app.include_router(knowledge_router)
-app.include_router(agent_proxy_router)
 
 # 轻量前端与 API 共用同一个 FastAPI 服务。/docs 仍保留给开发者调试接口。
 frontend_dir = Path(__file__).parent / "frontend"

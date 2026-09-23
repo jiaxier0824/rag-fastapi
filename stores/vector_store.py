@@ -77,22 +77,6 @@ class VectorStoreService:
 
         return len(document_ids)
 
-    def search(
-        self,
-        query: str,
-    ) -> list[Document]:
-        """合并向量检索与关键词检索的结果，返回最终上下文切片。"""
-        fusion_top_k = (
-            settings.retrieval_candidate_top_k
-            if settings.rerank_enabled
-            else settings.retrieval_top_k
-        )
-        documents, _ = self.search_with_trace(
-            query=query,
-            top_k=fusion_top_k,
-        )
-        return documents
-
     def search_with_trace(
         self,
         query: str,
@@ -210,16 +194,3 @@ class VectorStoreService:
             documents_by_key[key]
             for key in ranked_keys[:top_k]
         ]
-
-    def get_retriever(self):
-        """将 Chroma 适配为 LangChain Retriever，而不是立刻发起检索。
-
-        真正搜索发生在 RAG 链运行、Retriever 收到用户问题时；此处仅配置搜索规则。
-        """
-        # Retriever 是 LangChain 的标准检索接口，便于直接接入 RAG 链。
-        # k 表示每次问答取最相似的前 k 个文本切片。
-        return self.vector_store.as_retriever(
-            search_kwargs={
-                "k": settings.retrieval_top_k
-            }
-        )

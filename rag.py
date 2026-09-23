@@ -25,20 +25,6 @@ from services.observability import RequestTraceLogger
 from stores.chat_history import get_history
 from stores.vector_store import VectorStoreService
 
-
-def print_prompt(prompt):
-    """
-    在终端中打印大模型最终收到的提示词。
-    主要用于学习和排错。它会原样返回 prompt，所以不会中断 LCEL 管道。
-    """
-
-    print("=" * 50)
-    print(prompt.to_string())
-    print("=" * 50)
-
-    return prompt
-
-
 def _source_names(documents: list[Document]) -> list[str]:
     """按顺序提取检索或重排阶段出现的来源文件名。"""
     return list(
@@ -70,8 +56,12 @@ class RagService:
             [
                 (
                     "system",
-                    "请以提供的参考资料为主，"
-                    "简洁、专业地回答用户问题。"
+                    "只能依据提供的参考资料回答；资料没有明确说明时，直接说明未找到，不能猜测或补全。"
+                    "涉及日期、时间、分数、百分比、权重或编号时，必须从资料中逐字提取并保留原始格式，"
+                    "不得自行换算、转换日期顺序或修改数值。"
+                    "当用户明确要求保留某个术语、缩写或英文表达时，答案必须原样包含该表达。"
+                    "若多段资料有冲突，优先采用课程 Profile 或明确的官方评估信息。"
+                    "回答应简洁、专业。"
                     "参考资料：{context}"
                 ),
                 (
@@ -92,6 +82,7 @@ class RagService:
         self.chat_model = ChatTongyi(
             model=settings.chat_model_name,
             api_key=settings.dashscope_api_key,
+            temperature=settings.chat_temperature,
         )
 
         # 4. 创建最终 RAG 链。注意 self.chain 最终是“带历史包装器的链”，不是裸 rag_chain。
@@ -203,7 +194,7 @@ class RagService:
             return {
                 "input": value["input"]["input"],
                 "context": value["context"],
-                "history": value["input"]["history"]
+                "history": value["input"]["history"],
             }
 
         rag_chain = (
@@ -215,8 +206,6 @@ class RagService:
             }
             | RunnableLambda(format_for_prompt)
             | self.prompt_template
-            # PromptTemplate 输出 ChatPromptValue；打印节点只用于观察，不改变输出。
-            | RunnableLambda(print_prompt)
             # ChatTongyi 输出 AIMessage；StrOutputParser 取出其中的纯文本 answer。
             | self.chat_model
             | StrOutputParser()

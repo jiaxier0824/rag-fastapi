@@ -7,6 +7,9 @@ const state = {
   showAllFiles: false,
 };
 
+// 网页由 RAG 提供；Agent 请求直接发送到独立的 8001 服务，避免 RAG 反向代理 Agent。
+const AGENT_API_BASE_URL = `${window.location.protocol}//${window.location.hostname}:8001`;
+
 const welcomeMarkup = document.querySelector('#chat-messages').innerHTML;
 const searchInput = document.querySelector('#file-search');
 const courseFilters = document.querySelector('.course-filters');
@@ -87,7 +90,7 @@ function formatSize(bytes) {
 
 async function checkHealth() {
   try {
-    const [ragResponse, agentResponse] = await Promise.all([fetch('/health'), fetch('/api/agent/health')]);
+    const [ragResponse, agentResponse] = await Promise.all([fetch('/health'), fetch(`${AGENT_API_BASE_URL}/health`)]);
     if (!ragResponse.ok) throw new Error();
     const agentOnline = agentResponse.ok;
     elements.status.textContent = agentOnline ? 'RAG 与 Agent 均已连接' : 'RAG 正常 · Agent 离线';
@@ -221,7 +224,7 @@ async function runAgentTask(question) {
     elements.messages.scrollTop = elements.messages.scrollHeight;
   };
   addStatus('Agent 正在分析任务');
-  const response = await fetch('/api/agent/chat/stream', {
+  const response = await fetch(`${AGENT_API_BASE_URL}/api/agent/chat/stream`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({question, session_id: state.sessionId}),

@@ -121,8 +121,6 @@ uvicorn api:app --reload --port 8000
 - `GET /api/knowledge/files`：分页查看资料
 - `DELETE /api/knowledge/files/{file_id}`：删除资料及关联向量
 - `POST /api/rag/chat`：基于知识库进行问答
-- `GET /api/agent/health`：检查独立 Agent 服务状态
-- `POST /api/agent/chat/stream`：将任务流式转发给独立 Agent 服务
 
 问答请求示例：
 
@@ -149,8 +147,8 @@ Docker 环境会自动使用独立的 `rag_user` 账号；部署前请在 `.env`
 
 首次启动会自动创建 MySQL 表。浏览器打开 `http://127.0.0.1:8000`。
 
-若同时运行 `RAG Agent FastAPI` 项目的 Compose 编排，网页会启用 Agent 任务模式；
-RAG 仍通过独立接口工作，Agent 通过 HTTP 调用 RAG 工具。只启动本仓库时，RAG 问答模式不受影响。
+若同时运行 `RAG Agent FastAPI`，网页的 Agent 模式会直接请求 `http://127.0.0.1:8001`；
+RAG 仍只负责知识库问答，Agent 通过 HTTP 调用 RAG 工具。只启动本仓库时，RAG 问答模式不受影响。
 
 停止服务但保留数据：
 

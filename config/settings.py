@@ -43,8 +43,9 @@ class Settings(BaseSettings):
 
     # 检索与模型配置
     retrieval_top_k: int = 3
-    retrieval_vector_top_k: int = 5
-    retrieval_keyword_top_k: int = 5
+    # 两路初召回比最终给模型的 3 段上下文更宽，避免相关的相邻评估表格片段在融合前就被截断。
+    retrieval_vector_top_k: int = 10
+    retrieval_keyword_top_k: int = 10
     retrieval_rrf_k: int = 60
     retrieval_candidate_top_k: int = 6
     rerank_enabled: bool = False
@@ -57,6 +58,8 @@ class Settings(BaseSettings):
     embedding_model_name: str = "text-embedding-v4"
     # 课程资料问答优先响应速度；复杂推理留给上游 Agent 按需处理。
     chat_model_name: str = "qwen-turbo"
+    # 课程事实问答应稳定复现同一份资料中的结论，而不是追求发散表达。
+    chat_temperature: float = 0.0
 
     model_config = SettingsConfigDict(
         env_file=".env",

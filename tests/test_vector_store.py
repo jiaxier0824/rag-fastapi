@@ -2,13 +2,14 @@
 
 from langchain_core.documents import Document
 
+from config.settings import settings
 from stores.vector_store import VectorStoreService
 
 
 class FakeChroma:
     def similarity_search(self, query: str, k: int):
         assert query == "INFS7410 作业截止时间"
-        assert k == 5
+        assert k == settings.retrieval_vector_top_k
         return [
             Document(
                 page_content="课程作业会在每周发布。",
@@ -36,7 +37,10 @@ def test_hybrid_search_merges_vector_and_keyword_results():
     service = object.__new__(VectorStoreService)
     service.vector_store = FakeChroma()
 
-    documents = service.search("INFS7410 作业截止时间")
+    documents, _ = service.search_with_trace(
+        query="INFS7410 作业截止时间",
+        top_k=settings.retrieval_top_k,
+    )
 
     assert [document.page_content for document in documents] == [
         "课程作业会在每周发布。",
