@@ -5,6 +5,7 @@
 """
 
 import json
+import re
 from pathlib import Path
 from typing import Sequence
 
@@ -37,6 +38,8 @@ class FileChatMessageHistory(BaseChatMessageHistory):
     ``messages`` 读取记录、``add_messages`` 追加记录、``clear`` 清空记录。
     """
     def __init__(self, session_id: str, storage_path: str):
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", session_id):
+            raise ValueError("session_id 只能包含字母、数字、下划线或连字符")
         self.session_id = session_id
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)

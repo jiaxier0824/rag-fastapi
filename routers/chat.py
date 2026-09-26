@@ -30,6 +30,7 @@ def chat(
         question=request.question,
         session_id=request.session_id,
         trace_id=trace_id,
+        use_history=request.use_history,
     )
 
     return ChatResponse(

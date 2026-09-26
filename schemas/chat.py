@@ -9,7 +9,15 @@ class ChatRequest(BaseModel):
 
     session_id: str = Field(
         default="user_001",
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9_-]+$",
         description="用户会话编号"
+    )
+
+    use_history: bool = Field(
+        default=True,
+        description="是否启用 RAG 自身的会话历史；Agent 调用时关闭"
     )
 
 

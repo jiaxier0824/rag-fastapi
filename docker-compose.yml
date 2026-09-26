@@ -39,6 +39,7 @@ services:
       - ./uploads:/app/uploads
       - ./chroma_db:/app/chroma_db
       - ./chat_history:/app/chat_history
+      - ./logs:/app/logs
 
 volumes:
   mysql_data:
