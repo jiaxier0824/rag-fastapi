@@ -7,3 +7,4 @@ __pycache__/
 uploads/
 chroma_db/
 chat_history/
+logs/

@@ -15,6 +15,23 @@ from config.database import get_db
 from config.settings import settings
 from dependencies import get_knowledge_file_service, get_rag_service
 from rag import RagService
+from stores.chat_history import FileChatMessageHistory
+
+
+def test_chinese_retrieval_query_is_translated_without_changing_original_question():
+    class FakeModel:
+        def invoke(self, messages):
+            assert messages[-1].content == "INFS7203 尿布到啤酒的支持度和置信度？"
+            return SimpleNamespace(content="association rule diapers to beer support and confidence")
+
+    rag_service = object.__new__(RagService)
+    rag_service.chat_model = FakeModel()
+    assert rag_service._retrieval_query("INFS7203 尿布到啤酒的支持度和置信度？") == (
+        "INFS7203 association rule diapers to beer support and confidence"
+    )
+    assert rag_service._retrieval_query("INFS7203 support and confidence") == (
+        "INFS7203 support and confidence"
+    )
 
 
 class FakeKnowledgeFileService:
@@ -44,10 +61,11 @@ class FakeKnowledgeFileService:
 
 
 class FakeRagService:
-    def ask(self, question: str, session_id: str, trace_id: str):
+    def ask(self, question: str, session_id: str, trace_id: str, use_history: bool = True):
         assert question == "课程怎么计分？"
         assert session_id == "test-user"
         assert trace_id == "agent-trace-001"
+        assert use_history is True
         return "课程成绩由作业和测验组成。", ["course.md"]
 
 
@@ -121,10 +139,43 @@ def test_chat_uses_request_question_and_session_id():
     assert response.json()["trace_id"] == "agent-trace-001"
 
 
+def test_agent_can_disable_rag_history():
+    class HistoryAwareFakeRagService(FakeRagService):
+        def ask(self, question: str, session_id: str, trace_id: str, use_history: bool = True):
+            assert use_history is False
+            return "无重复历史的答案", ["course.md"]
+
+    app.dependency_overrides[get_rag_service] = HistoryAwareFakeRagService
+    response = TestClient(app).post(
+        "/api/rag/chat",
+        headers={"X-Trace-ID": "agent-trace-001"},
+        json={"question": "课程怎么计分？", "session_id": "test-user", "use_history": False},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["answer"] == "无重复历史的答案"
+
+
+def test_chat_rejects_unsafe_session_id():
+    response = build_client().post(
+        "/api/rag/chat",
+        json={"question": "课程怎么计分？", "session_id": "../../outside"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_history_store_rejects_unsafe_session_id(tmp_path):
+    import pytest
+
+    with pytest.raises(ValueError, match="session_id"):
+        FileChatMessageHistory("../../outside", str(tmp_path))
+
+
 def test_rag_service_reuses_retrieved_documents_for_answer_and_sources():
     class FakeVectorStoreService:
-        def search_with_trace(self, query: str, top_k: int):
-            assert query == "课程怎么计分？"
+        def search_with_trace(self, query: str, top_k: int, source_hint: str | None = None):
+            assert query == "course assessment grading"
             expected_top_k = (
                 settings.retrieval_candidate_top_k
                 if settings.rerank_enabled
@@ -142,6 +193,9 @@ def test_rag_service_reuses_retrieved_documents_for_answer_and_sources():
                 ),
             ], {"hybrid_total_ms": 1.0}
 
+        def expand_context_windows(self, candidates):
+            return candidates
+
     class FakeConversationChain:
         def invoke(self, data, config):
             assert data["input"] == "课程怎么计分？"
@@ -150,12 +204,14 @@ def test_rag_service_reuses_retrieved_documents_for_answer_and_sources():
             return "课程成绩由作业和测验组成。"
 
     rag_service = object.__new__(RagService)
+    rag_service._retrieval_query = lambda question: "course assessment grading"
     rag_service.vector_service = FakeVectorStoreService()
     rag_service.chain = FakeConversationChain()
+    rag_service.rag_chain = FakeConversationChain()
 
     class FakeRerankService:
         def rerank(self, question: str, candidates):
-            assert question == "课程怎么计分？"
+            assert question == "course assessment grading"
             assert len(candidates) == 2
             return candidates
 
@@ -165,6 +221,12 @@ def test_rag_service_reuses_retrieved_documents_for_answer_and_sources():
         def write(self, event):
             assert event["trace_id"] == "trace-test"
             assert event["sources"] == ["assessment.md"]
+            assert event["query_rewritten"] is True
+            assert len(event["candidate_chunks"]) == 2
+            assert len(event["final_chunks"]) == 2
+            assert event["final_chunks"][0]["source"] == "assessment.md"
+            assert len(event["final_chunks"][0]["content_sha256"]) == 64
+            assert "page_content" not in event["final_chunks"][0]
 
     rag_service.trace_logger = FakeTraceLogger()
 
@@ -176,3 +238,49 @@ def test_rag_service_reuses_retrieved_documents_for_answer_and_sources():
 
     assert answer == "课程成绩由作业和测验组成。"
     assert source_filenames == ["assessment.md"]
+
+
+def test_rag_service_uses_stateless_chain_when_history_is_disabled():
+    document = Document(page_content="作业占 60%。", metadata={"source": "assessment.md"})
+
+    class FakeVectorStoreService:
+        def search_with_trace(self, **_kwargs):
+            return [document], {"hybrid_total_ms": 1.0}
+
+        def expand_context_windows(self, candidates):
+            return candidates
+
+    class FakeRerankService:
+        def rerank(self, **_kwargs):
+            return [document]
+
+    class StatelessChain:
+        def invoke(self, data, config):
+            assert data["history"] == []
+            return "无历史污染的答案"
+
+    class ConversationChain:
+        def invoke(self, *_args, **_kwargs):
+            raise AssertionError("Agent 调用不应进入 RAG 会话历史链")
+
+    class FakeTraceLogger:
+        def write(self, _event):
+            return None
+
+    rag_service = object.__new__(RagService)
+    rag_service._retrieval_query = lambda question: question
+    rag_service.vector_service = FakeVectorStoreService()
+    rag_service.rerank_service = FakeRerankService()
+    rag_service.rag_chain = StatelessChain()
+    rag_service.chain = ConversationChain()
+    rag_service.trace_logger = FakeTraceLogger()
+
+    answer, sources = rag_service.ask(
+        question="课程怎么计分？",
+        session_id="agent-session",
+        trace_id="agent-trace",
+        use_history=False,
+    )
+
+    assert answer == "无历史污染的答案"
+    assert sources == ["assessment.md"]

@@ -67,10 +67,10 @@ class KnowledgeBaseService:
         # 向量化由 Chroma 根据 VectorStoreService 中的 embedding 自动完成。
         document_ids = self.vector_store_service.add_texts(
             texts=knowledge_chunks,
-            # Chroma 要求每段 text 有对应 metadata。这里复制字典，避免多个切片共用同一对象。
+            # 顺序号让后续检索能恢复相邻切片，PDF 等非 Markdown 原件也适用。
             metadatas=[
-                metadata
-                for _ in knowledge_chunks
+                {**metadata, "chunk_index": index}
+                for index, _ in enumerate(knowledge_chunks)
             ]
         )
 
@@ -86,11 +86,3 @@ class KnowledgeBaseService:
                 file_id
             )
         )
-
-
-if __name__ == "__main__":
-    from dependencies import get_knowledge_base_service
-
-    service = get_knowledge_base_service()
-
-    print("知识库服务创建成功")
