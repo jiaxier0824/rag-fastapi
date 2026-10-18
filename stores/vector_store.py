@@ -207,16 +207,9 @@ class VectorStoreService:
         keyword_elapsed_ms = (perf_counter() - keyword_started_at) * 1000
 
         fusion_started_at = perf_counter()
-        fused_documents = self._reciprocal_rank_fusion(
+        documents = self._reciprocal_rank_fusion(
             ranked_document_lists=[vector_documents, keyword_documents],
-            top_k=len(vector_documents) + len(keyword_documents),
-        )
-        # 重排前保留各路靠前候选，避免单一路线的答案片段在截断时消失。
-        documents = self._diversify_candidates(
-            fused_documents,
-            vector_documents,
-            keyword_documents,
-            top_k,
+            top_k=top_k,
         )
         fusion_elapsed_ms = (perf_counter() - fusion_started_at) * 1000
 
@@ -243,7 +236,7 @@ class VectorStoreService:
     def _explicit_source_search(
         self, query: str, source_hint: str | None = None, top_k: int = 6
     ) -> list[Document]:
-        """问题明确只指定一门课的一周/一讲时，补充该资料的向量候选。"""
+        """明确指定一门课的一周/一讲时，限定两路召回范围并取 RRF Top-K。"""
         hint = source_hint if source_hint is not None else query
         courses = {code.upper() for code in re.findall(r"\b[A-Za-z]{3,4}\d{4}\b", hint)}
         references = {
@@ -284,23 +277,10 @@ class VectorStoreService:
             where=source_filter, include=["documents", "metadatas"]
         )
         keyword_documents = self._rank_stored_documents(query, stored_documents, top_k)
-        fused = self._reciprocal_rank_fusion(
+        return self._reciprocal_rank_fusion(
             [vector_documents, keyword_documents],
-            top_k=len(vector_documents) + len(keyword_documents),
+            top_k=top_k,
         )
-        vector_count = min(2, top_k // 3) if top_k > settings.retrieval_top_k else 1
-        selected = {
-            self._document_key(document)
-            for document in [
-                *vector_documents[:vector_count],
-                *keyword_documents[:top_k - vector_count],
-            ]
-        }
-        for document in fused:
-            if len(selected) >= top_k:
-                break
-            selected.add(self._document_key(document))
-        return [document for document in fused if self._document_key(document) in selected][:top_k]
 
     def _rank_stored_documents(
         self, query: str, stored_data: dict, top_k: int
@@ -341,33 +321,6 @@ class VectorStoreService:
     def _document_key(document: Document) -> tuple[str, str]:
         """为同一文本切片生成稳定键，供两路召回结果去重。"""
         return document.page_content, str(document.metadata.get("file_id", ""))
-
-    def _diversify_candidates(
-        self,
-        fused: list[Document],
-        vector: list[Document],
-        keyword: list[Document],
-        top_k: int,
-    ) -> list[Document]:
-        """给重排候选保留各召回入口；直接回答的 top_k 仍按 RRF 排序。"""
-        if top_k <= settings.retrieval_top_k:
-            return fused[:top_k]
-
-        per_route = min(3, top_k // 2)
-        selected = {
-            self._document_key(document)
-            for document in [
-                *vector[:per_route], *keyword[:per_route]
-            ]
-        }
-        for document in fused:
-            if len(selected) >= top_k:
-                break
-            selected.add(self._document_key(document))
-        return [
-            document for document in fused
-            if self._document_key(document) in selected
-        ][:top_k]
 
     def _reciprocal_rank_fusion(
         self,

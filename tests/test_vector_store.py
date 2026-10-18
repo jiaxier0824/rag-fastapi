@@ -1,5 +1,7 @@
 """混合检索的纯单元测试，不连接真实 Chroma 或 Embedding 服务。"""
 
+import pytest
+
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -91,18 +93,55 @@ def test_bm25_tokenizer_removes_english_stopwords_but_keeps_search_terms():
     ) == ["problems", "reit6811", "research", "not", "engage", "users"]
 
 
-def test_rerank_candidates_keep_top_results_from_both_routes():
+@pytest.mark.parametrize("scoped", [False, True], ids=["global", "course-week"])
+@pytest.mark.parametrize(
+    "vector_names,keyword_names,top_k,expected",
+    [
+        # B 在两路排第2、第3，RRF分数最高；不能被两路配额排除。
+        (["A", "B", "C"], ["D", "E", "B"], 3, ["B", "A", "D"]),
+        # E/F 在两路都靠后，但累计贡献最高，Top-6也必须尊重融合排名。
+        (list("ABCDEF"), list("GHIJEF"), 6, ["E", "F", "A", "G", "B", "H"]),
+    ],
+    ids=["top3-keeps-best-shared-chunk", "top6-keeps-best-shared-chunks"],
+)
+def test_hybrid_candidates_follow_rrf_top_k(
+    monkeypatch, scoped, vector_names, keyword_names, top_k, expected
+):
+    monkeypatch.setattr(settings, "retrieval_rrf_k", 60)
+    monkeypatch.setattr(settings, "retrieval_top_k", 3)
+    monkeypatch.setattr(settings, "retrieval_vector_top_k", 10)
+    source = "INFS7410_week1_notes.md"
+    metadata = {"source": source, "file_id": "course-file"}
+    vector = [Document(page_content=name, metadata=metadata) for name in vector_names]
+    keyword = [Document(page_content=name, metadata=metadata) for name in keyword_names]
+
+    class RankedChroma:
+        def similarity_search(self, *, query, k, filter=None):
+            assert filter == ({"source": source} if scoped else None)
+            return vector[:k]
+
+        def get(self, *, include, where=None):
+            if include == ["metadatas"]:
+                return {"metadatas": [metadata]}
+            assert where == ({"source": source} if scoped else None)
+            return {"documents": keyword_names, "metadatas": [metadata] * len(keyword_names)}
+
     service = object.__new__(VectorStoreService)
-    vector = [Document(page_content=f"vector-{i}") for i in range(3)]
-    keyword = [Document(page_content=f"keyword-{i}") for i in range(3)]
-    fused = vector + [Document(page_content="fused-extra"), *keyword]
+    service.vector_store = RankedChroma()
+    # 两路已有排名固定，只验证融合后的候选选择，不依赖BM25分词或模型。
+    monkeypatch.setattr(
+        service, "_rank_stored_documents",
+        lambda query, stored_data, limit: keyword[:limit],
+    )
+    documents, _ = service.search_with_trace(
+        query="assignment deadline",
+        source_hint="INFS7410 第1周" if scoped else "作业什么时候截止？",
+        top_k=top_k,
+    )
 
-    candidates = service._diversify_candidates(fused, vector, keyword, top_k=6)
-
-    assert [document.page_content for document in candidates] == [
-        "vector-0", "vector-1", "vector-2",
-        "keyword-0", "keyword-1", "keyword-2",
-    ]
+    assert [document.page_content for document in documents] == expected
+    assert len({service._document_key(document) for document in documents}) == len(documents)
+    assert all(document.metadata == metadata for document in documents)
 
 
 class FakeSourceChroma:
