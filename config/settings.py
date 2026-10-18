@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     observability_log_path: str = "./logs/rag_requests.jsonl"
     embedding_model_name: str = "text-embedding-v4"
     # 课程资料问答优先响应速度；复杂推理留给上游 Agent 按需处理。
-    chat_model_name: str = "qwen-turbo"
+    chat_model_name: str = "qwen-flash"
     # 课程事实问答应稳定复现同一份资料中的结论，而不是追求发散表达。
     chat_temperature: float = 0.0
 

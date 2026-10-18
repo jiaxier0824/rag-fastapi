@@ -11,11 +11,11 @@
 - 上传 UTF-8 编码的 `.txt` 和 `.md` 课程资料
 - 文本切分后使用 `text-embedding-v4` 生成向量
 - Chroma 持久化向量数据库，结合向量检索与 BM25 关键词检索
-- RRF 融合两路召回，并使用 `qwen3-rerank` 二次精排候选切片
+- RRF 按两路排名累加得分、去重并直接取 Top-K；可选 `qwen3-rerank` 二次精排，不再按检索路线分配保留名额
 - MySQL 保存知识文件元数据
 - 文件原文、MySQL 记录、Chroma 切片三处同步管理
 - MD5 内容去重，避免重复上传相同资料
-- 基于 `qwen-turbo` 的低延迟 RAG 问答
+- 基于 `qwen-flash` 的 RAG 问答
 - 返回回答引用的来源文件名，便于用户追溯资料来源
 - 请求级 `trace_id` 与 JSONL 调用链日志，记录检索、重排、生成耗时和来源
 - 基于 `session_id` 的多轮对话历史
@@ -63,7 +63,7 @@ DASHSCOPE_API_KEY=你的百炼API密钥
 RERANK_ENABLED=true
 RERANK_MODEL_NAME=qwen3-rerank
 DASHSCOPE_WORKSPACE_ID=你的业务空间ID
-CHAT_MODEL_NAME=qwen-turbo
+CHAT_MODEL_NAME=qwen-flash
 DB_PASSWORD=你的MySQL密码
 ```
 
@@ -161,3 +161,7 @@ pytest -q
 - 支持 PDF、Word 等更多文档格式
 - 在人工确认后扩展更大规模、更多难例的检索评测集
 - 作为独立 RAG 服务接入更多 Agent 工具
+
+## 收尾版本验证
+
+2026-10-18 选定的收尾版本已通过真实 Agent → MCP → RAG HTTP 链路执行 51 题，自动综合规则通过 44/51（86.3%）。原评分和已知失败保持不变，后续实验未合入该版本。详细方法、限制及版本选择见[收尾验证说明](docs/validation-2026-10-18.md)。
